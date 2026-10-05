@@ -5,6 +5,7 @@ import { getMe, getAuthStatus, demoLogin, logout as apiLogout } from '../service
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  error: string | null;
   demoModeAvailable: boolean;
   isAuthenticated: boolean;
   loginAsDemo: () => Promise<void>;
@@ -17,9 +18,12 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [demoModeAvailable, setDemoModeAvailable] = useState(false);
 
   const fetchUser = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const status = await getAuthStatus();
       setDemoModeAvailable(status.data.demoModeAvailable);
@@ -32,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       setUser(null);
+      setError('The ReleaseRadar API is not responding. Please wake or redeploy the Render service, then try again.');
     } finally {
       setLoading(false);
     }
@@ -58,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user,
       loading,
+      error,
       demoModeAvailable,
       isAuthenticated: !!user,
       loginAsDemo,

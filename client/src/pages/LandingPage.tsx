@@ -6,7 +6,7 @@ import { getGitHubAuthUrl } from '../services/api';
 import { Spinner } from '../components/ui';
 
 export function LandingPage() {
-  const { isAuthenticated, loginAsDemo, demoModeAvailable, loading } = useAuth();
+  const { isAuthenticated, loginAsDemo, demoModeAvailable, loading, error, refetch } = useAuth();
   const navigate = useNavigate();
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -46,6 +46,21 @@ export function LandingPage() {
     return (
       <div className="flex h-screen items-center justify-center">
         <Spinner size={32} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[hsl(222,47%,5%)] flex items-center justify-center p-6">
+        <div className="card max-w-md p-7 text-center">
+          <Shield size={30} className="mx-auto mb-4 text-amber-400" />
+          <h1 className="text-lg font-semibold text-[hsl(210,40%,95%)]">Service unavailable</h1>
+          <p className="mt-2 text-sm text-[hsl(215,20%,60%)]">{error}</p>
+          <button onClick={refetch} className="btn-primary mt-6 mx-auto">
+            <RefreshCw size={15} /> Try again
+          </button>
+        </div>
       </div>
     );
   }
