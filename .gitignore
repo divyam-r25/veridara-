@@ -5,4 +5,5 @@ dist/
 !client/.env.production
 atlas-credentials.env
 *.log
+*.pem
 .DS_Store

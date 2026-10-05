@@ -4,12 +4,13 @@ import { User } from '../models/User';
 import { AuditLog } from '../models/AuditLog';
 import { createError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
+import crypto from 'crypto';
 
 export const authRouter = Router();
 
 // GitHub OAuth - get redirect URL
-authRouter.get('/github', (_req: Request, res: Response) => {
-  const clientId = process.env.GITHUB_CLIENT_ID;
+authRouter.get('/github', (req: Request, res: Response) => {
+  const clientId = process.env.GITHUB_CLIENT_ID?.trim();
 
   if (!clientId) {
     return res.json({
@@ -22,17 +23,19 @@ authRouter.get('/github', (_req: Request, res: Response) => {
     });
   }
 
-  const scope = 'read:user user:email repo';
-  const redirectUri = process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/api/auth/github/callback';
-  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  const scope = 'read:user user:email';
+  const redirectUri = (process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/api/auth/github/callback').trim();
+  const state = crypto.randomBytes(32).toString('hex');
+  req.session.oauthState = state;
+  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
   res.json({ success: true, data: { url: githubAuthUrl } });
 });
 
 // GitHub OAuth callback
 authRouter.get('/github/callback', async (req: Request, res: Response, next: NextFunction) => {
-  const { code, error } = req.query;
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const { code, error, state } = req.query;
+  const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').trim();
 
   if (error) {
     return res.redirect(`${clientUrl}?error=github_denied`);
@@ -40,6 +43,12 @@ authRouter.get('/github/callback', async (req: Request, res: Response, next: Nex
 
   if (!code) {
     return next(createError('Missing OAuth code', 400, 'MISSING_CODE'));
+  }
+
+  const expectedState = req.session.oauthState;
+  delete req.session.oauthState;
+  if (!expectedState || typeof state !== 'string' || expectedState.length !== state.length || !crypto.timingSafeEqual(Buffer.from(expectedState), Buffer.from(state))) {
+    return next(createError('Invalid OAuth state', 400, 'INVALID_OAUTH_STATE'));
   }
 
   try {
