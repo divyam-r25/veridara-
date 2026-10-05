@@ -56,6 +56,14 @@ service, so browser requests and session cookies use the same origin.
    `https://<your-render-service>.onrender.com/api/auth/github/callback` after
    the first deploy.
 
+### Vercel frontend
+
+The production client reads `client/.env.production`, which points API requests
+to the Render service. Configure Vercel with `client` as the project Root
+Directory, then redeploy after any API URL change. The Render service must allow
+the Vercel deployment URL in `CORS_ORIGINS`; the included Blueprint already
+allows the currently configured production URL.
+
 ---
 
 ## Demo Flow (no GitHub credentials needed)

@@ -16,15 +16,9 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       - key: CORS_ORIGINS
-        fromService:
-          type: web
-          name: releaseradar
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://releaseradar-2x9m.onrender.com,https://veridara-nwrfx8mzv-divyams-projects-f8cb1b3a.vercel.app
       - key: CLIENT_URL
-        fromService:
-          type: web
-          name: releaseradar
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://veridara-nwrfx8mzv-divyams-projects-f8cb1b3a.vercel.app
       - key: GITHUB_CLIENT_ID
         sync: false
       - key: GITHUB_CLIENT_SECRET

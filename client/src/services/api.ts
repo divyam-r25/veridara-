@@ -4,8 +4,12 @@ import type {
   Finding, FixPack, GitHubRepo, GitHubPR, ApiResponse
 } from '../types';
 
+// Local development uses Vite's /api proxy. Production frontends can point to
+// a separately deployed API by setting VITE_API_URL (without /api).
+const apiBaseUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl ? `${apiBaseUrl}/api` : '/api',
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' }
 });
