@@ -6,4 +6,5 @@ dist/
 atlas-credentials.env
 *.log
 *.pem
+*.tsbuildinfo
 .DS_Store
