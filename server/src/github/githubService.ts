@@ -82,28 +82,39 @@ export async function getOctokitForRepository(installationId?: string, userToken
 export async function exchangeCodeForToken(code: string): Promise<string> {
   const clientId = process.env.GITHUB_CLIENT_ID?.trim();
   const clientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
+  const redirectUri = process.env.GITHUB_CALLBACK_URL?.trim();
 
   if (!clientId || !clientSecret) {
     throw new Error('GitHub OAuth credentials not configured');
   }
 
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    code
+  });
+
+  if (redirectUri) {
+    params.set('redirect_uri', redirectUri);
+  }
+
   const response = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded'
     },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      code
-    })
+    body: params.toString()
   });
 
-  const data = await response.json() as { access_token?: string; error?: string };
+  const data = await response.json() as {
+    access_token?: string;
+    error?: string;
+    error_description?: string;
+  };
 
-  if (data.error || !data.access_token) {
-    throw new Error(data.error || 'Failed to exchange code for token');
+  if (!response.ok || data.error || !data.access_token) {
+    throw new Error(data.error_description || data.error || 'Failed to exchange code for token');
   }
 
   return data.access_token;
