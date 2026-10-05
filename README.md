@@ -131,6 +131,10 @@ See `server/.env.example`. Key variables:
 | `CORS_ORIGINS` | Yes in production | Comma-separated allowed frontend origins |
 | `CLIENT_URL` | Yes in production | Frontend URL for OAuth redirects |
 
+The Veridara API also recognizes Vercel deployment URLs for the configured
+Veridara workspace, so preview/production deployment URLs can use the API
+without weakening CORS for unrelated Vercel projects.
+
 ---
 
 ## Security Notes

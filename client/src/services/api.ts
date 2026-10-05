@@ -10,7 +10,9 @@ const apiBaseUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
 
 const api = axios.create({
   baseURL: apiBaseUrl ? `${apiBaseUrl}/api` : '/api',
-  timeout: 15000,
+  // Render's free tier can take around 50 seconds to wake. A shorter timeout
+  // turns a healthy cold start into a misleading "Service unavailable" UI.
+  timeout: 65000,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' }
 });

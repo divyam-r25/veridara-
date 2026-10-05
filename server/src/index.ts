@@ -34,9 +34,13 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http:
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+// Vercel gives every production deployment its own URL. Restrict these to
+// Veridara deployments in this Vercel workspace rather than accepting every
+// *.vercel.app origin (which would expose credentialed API responses).
+const veridaraVercelDeployment = /^https:\/\/veridara(?:-[a-z0-9-]+)?-divyams-projects-f8cb1b3a\.vercel\.app$/i;
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || veridaraVercelDeployment.test(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
