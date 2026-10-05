@@ -1,0 +1,70 @@
+import { Queue, Worker, Job } from 'bullmq';
+import { getRedisClient } from '../config/redis';
+import { runAnalysis } from '../services/analysisService';
+import { logger } from '../utils/logger';
+
+let analysisQueue: Queue | null = null;
+let analysisWorker: Worker | null = null;
+
+export async function initQueues(): Promise<void> {
+  try {
+    const connection = getRedisClient();
+
+    analysisQueue = new Queue('analysis', {
+      connection,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: 100,
+        removeOnFail: 50
+      }
+    });
+
+    analysisWorker = new Worker(
+      'analysis',
+      async (job: Job) => {
+        const { analysisRunId } = job.data;
+        logger.info(`Processing analysis job ${job.id} for run ${analysisRunId}`);
+        await runAnalysis(analysisRunId);
+      },
+      {
+        connection,
+        concurrency: 3,
+        limiter: { max: 10, duration: 60000 }
+      }
+    );
+
+    analysisWorker.on('completed', (job) => {
+      logger.info(`Analysis job ${job.id} completed`);
+    });
+
+    analysisWorker.on('failed', (job, err) => {
+      logger.error(`Analysis job ${job?.id} failed:`, err.message);
+    });
+
+    logger.info('✅ BullMQ queues initialized');
+  } catch (err) {
+    logger.warn('Redis unavailable, falling back to in-process analysis:', err instanceof Error ? err.message : String(err));
+    // Non-fatal: analysis will run synchronously
+  }
+}
+
+export async function enqueueAnalysis(analysisRunId: string): Promise<void> {
+  if (analysisQueue) {
+    await analysisQueue.add('run-analysis', { analysisRunId }, {
+      jobId: `analysis-${analysisRunId}`,
+      attempts: 3
+    });
+    logger.info(`Analysis ${analysisRunId} enqueued`);
+  } else {
+    // Fallback: run inline (no Redis)
+    logger.info(`Running analysis ${analysisRunId} inline (no Redis)`);
+    setTimeout(() => runAnalysis(analysisRunId).catch(err => {
+      logger.error('Inline analysis failed:', err instanceof Error ? err.message : String(err));
+    }), 100);
+  }
+}
+
+export function getAnalysisQueue(): Queue | null {
+  return analysisQueue;
+}
