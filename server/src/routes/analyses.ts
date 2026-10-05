@@ -42,6 +42,9 @@ analysesRouter.post('/', async (req: Request, res: Response, next: NextFunction)
     );
 
     const iterationNumber = previousAnalysis ? previousAnalysis.iterationNumber + 1 : 1;
+    if (iterationNumber > 3) {
+      return next(createError('Maximum automatic verification iterations reached; manual review is required', 409, 'MANUAL_REVIEW_REQUIRED'));
+    }
 
     const analysisRun = await AnalysisRun.create({
       pullRequestId: pr.id,
@@ -180,6 +183,10 @@ analysesRouter.post('/:id/verify', async (req: Request, res: Response, next: Nex
 
     if (newHeadSha) {
       await PullRequest.findByIdAndUpdate(pr.id, { headSha: newHeadSha });
+    }
+
+    if (analysis.iterationNumber >= 3) {
+      return next(createError('Maximum automatic verification iterations reached; manual review is required', 409, 'MANUAL_REVIEW_REQUIRED'));
     }
 
     const newAnalysis = await AnalysisRun.create({
