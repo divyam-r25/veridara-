@@ -4,11 +4,10 @@ import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import session from 'express-session';
 import rateLimit from 'express-rate-limit';
 import { connectDatabase } from './config/database';
 import { connectRedis, isRedisAvailable } from './config/redis';
-import { RedisSessionStore } from './config/redisSessionStore';
+import { configureSession } from './config/session';
 import mongoose from 'mongoose';
 import { initQueues } from './queues';
 import { errorHandler } from './middleware/errorHandler';
@@ -71,21 +70,8 @@ app.use(morgan('combined', {
   stream: { write: (msg: string) => logger.info(msg.trim()) }
 }));
 
-// Session
-app.use(session({
-  store: new RedisSessionStore(),
-  secret: process.env.SESSION_SECRET || 'veridara-dev-secret-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    // The Vercel frontend and Render API are separate sites in production.
-    // Cross-site requests need an explicitly cross-site session cookie.
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-  }
-}));
+// Session configuration trusts Render's proxy before secure cookies are used.
+configureSession(app);
 
 // Routes
 app.use('/api/auth', authRouter);

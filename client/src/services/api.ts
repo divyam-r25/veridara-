@@ -24,8 +24,8 @@ export const getAuthStatus = () =>
 export const demoLogin = () =>
   api.post<ApiResponse<{ user: User; demoMode: boolean }>>('/auth/demo-login').then(r => r.data);
 
-export const getGitHubAuthUrl = () =>
-  api.get<ApiResponse<{ url?: string; demoMode?: boolean; demoLoginUrl?: string }>>('/auth/github').then(r => r.data);
+/** Direct navigation creates the OAuth state in the same top-level browser flow. */
+export const getGitHubLoginUrl = () => apiBaseUrl ? `${apiBaseUrl}/api/auth/github` : '/api/auth/github';
 
 export const logout = () =>
   api.post('/auth/logout').then(r => r.data);

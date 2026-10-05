@@ -8,28 +8,53 @@ import crypto from 'crypto';
 
 export const authRouter = Router();
 
-// GitHub OAuth - get redirect URL
-authRouter.get('/github', (req: Request, res: Response) => {
+type OAuthStateSession = {
+  oauthState?: string;
+  save(callback: (error?: unknown) => void): void;
+};
+
+export function createOAuthState(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+export function statesMatch(expectedState: string | undefined, receivedState: unknown): boolean {
+  if (!expectedState || typeof receivedState !== 'string' || expectedState.length !== receivedState.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expectedState), Buffer.from(receivedState));
+}
+
+function saveSession(session: OAuthStateSession): Promise<void> {
+  return new Promise((resolve, reject) => session.save(error => error ? reject(error) : resolve()));
+}
+
+/** Validate and consume an OAuth state. Every result invalidates the old state. */
+export async function consumeOAuthState(session: OAuthStateSession, receivedState: unknown): Promise<boolean> {
+  const valid = statesMatch(session.oauthState, receivedState);
+  delete session.oauthState;
+  await saveSession(session);
+  return valid;
+}
+
+// GitHub OAuth begins as a browser navigation, not a cross-site XHR. This
+// ensures the state cookie is established before GitHub redirects back.
+authRouter.get('/github', async (req: Request, res: Response, next: NextFunction) => {
   const clientId = process.env.GITHUB_CLIENT_ID?.trim();
+  const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').trim();
 
   if (!clientId) {
-    return res.json({
-      success: true,
-      data: {
-        demoMode: true,
-        message: 'GitHub OAuth not configured. Using demo mode.',
-        demoLoginUrl: '/api/auth/demo-login'
-      }
-    });
+    return res.redirect(`${clientUrl}?demo=1`);
   }
 
-  const scope = 'read:user user:email';
-  const redirectUri = (process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/api/auth/github/callback').trim();
-  const state = crypto.randomBytes(32).toString('hex');
-  req.session.oauthState = state;
-  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
-
-  res.json({ success: true, data: { url: githubAuthUrl } });
+  try {
+    const scope = 'read:user user:email';
+    const redirectUri = (process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/api/auth/github/callback').trim();
+    const state = createOAuthState();
+    req.session.oauthState = state;
+    await saveSession(req.session);
+    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+    return res.redirect(githubAuthUrl);
+  } catch (error) {
+    return next(error);
+  }
 });
 
 // GitHub OAuth callback
@@ -45,10 +70,12 @@ authRouter.get('/github/callback', async (req: Request, res: Response, next: Nex
     return next(createError('Missing OAuth code', 400, 'MISSING_CODE'));
   }
 
-  const expectedState = req.session.oauthState;
-  delete req.session.oauthState;
-  if (!expectedState || typeof state !== 'string' || expectedState.length !== state.length || !crypto.timingSafeEqual(Buffer.from(expectedState), Buffer.from(state))) {
-    return next(createError('Invalid OAuth state', 400, 'INVALID_OAUTH_STATE'));
+  try {
+    if (!await consumeOAuthState(req.session, state)) {
+      return next(createError('Invalid OAuth state', 400, 'INVALID_OAUTH_STATE'));
+    }
+  } catch (err) {
+    return next(err);
   }
 
   try {
@@ -68,6 +95,7 @@ authRouter.get('/github/callback', async (req: Request, res: Response, next: Nex
     );
 
     req.session.userId = user.id;
+    await saveSession(req.session);
 
     await AuditLog.create({
       userId: user.id,
@@ -76,7 +104,7 @@ authRouter.get('/github/callback', async (req: Request, res: Response, next: Nex
       ip: req.ip
     });
 
-    res.redirect(`${clientUrl}/dashboard`);
+    return res.redirect(`${clientUrl}/dashboard`);
   } catch (err) {
     logger.error('GitHub OAuth callback failed:', err instanceof Error ? err.message : String(err));
     res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?error=auth_failed`);

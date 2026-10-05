@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Shield, GitBranch, RefreshCw, ArrowRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { getGitHubAuthUrl } from '../services/api';
+import { getGitHubLoginUrl } from '../services/api';
 import { Spinner } from '../components/ui';
 
 export function LandingPage() {
@@ -17,14 +17,12 @@ export function LandingPage() {
   const handleGitHubLogin = async () => {
     setAuthLoading(true);
     try {
-      const result = await getGitHubAuthUrl();
-      if (result.data.url) {
-        window.location.href = result.data.url;
-      } else if (result.data.demoMode) {
-        // No GitHub configured, use demo login
+      if (demoModeAvailable) {
         await loginAsDemo();
         navigate('/dashboard');
+        return;
       }
+      window.location.assign(getGitHubLoginUrl());
     } catch (err) {
       console.error('Auth failed:', err);
       setAuthLoading(false);
