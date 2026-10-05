@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { GitBranch, Plus, ExternalLink, Lock, Globe, Star, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { GitBranch, Plus, Lock, Globe, Star, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { AppLayout, PageHeader } from '../components/Layout';
 import { EmptyState, Skeleton, Toast } from '../components/ui';
 import { getRepositories, getAvailableRepos, connectRepository } from '../services/api';

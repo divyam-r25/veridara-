@@ -2,12 +2,11 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  Activity, Shield, AlertTriangle, CheckCircle,
-  Clock, TrendingUp, GitPullRequest, ArrowRight,
+  Activity, AlertTriangle, TrendingUp, GitPullRequest, ArrowRight,
   RefreshCw, Zap
 } from 'lucide-react';
 import { AppLayout, PageHeader } from '../components/Layout';
-import { ScoreRing, SeverityBadge, DecisionBadge, Skeleton, EmptyState } from '../components/ui';
+import { ScoreRing, DecisionBadge, Skeleton, EmptyState } from '../components/ui';
 import { getAllAnalyses, getRepositories } from '../services/api';
 import type { AnalysisRun, Repository } from '../types';
 import { formatDistanceToNow } from 'date-fns';
@@ -105,7 +104,7 @@ export function DashboardPage() {
     refetchInterval: 5000 // Poll for analysis updates
   });
 
-  const { data: reposData, isLoading: loadingRepos } = useQuery({
+  const { data: reposData } = useQuery({
     queryKey: ['repositories'],
     queryFn: getRepositories
   });
@@ -123,7 +122,6 @@ export function DashboardPage() {
     ? Math.round(completedAnalyses.reduce((s, a) => s + a.releaseScore, 0) / completedAnalyses.length)
     : 0;
 
-  const criticalCount = 0; // Would count from findings
   const blockedCount = completedAnalyses.filter(a => a.decision === 'BLOCKED').length;
 
   return (

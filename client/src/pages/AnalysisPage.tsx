@@ -1,11 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Shield, AlertTriangle, CheckCircle, Copy, Download,
-  RefreshCw, ChevronDown, ChevronUp, FileCode, ExternalLink,
-  AlertCircle, Info, Cpu, Package, Activity, GitCompare,
-  Zap, ArrowRight, Play, Clock
+  RefreshCw, ChevronDown, ChevronUp, FileCode, Info, Cpu, Activity,
+  Zap, ArrowRight
 } from 'lucide-react';
 import { AppLayout, PageHeader } from '../components/Layout';
 import {
@@ -16,7 +15,7 @@ import {
   getAnalysis, getFindings, getFixPack, triggerVerification,
   recordFixPackCopied, getAnalysisHistory
 } from '../services/api';
-import type { AnalysisRun, Finding, FixPack, AnalysisStatus } from '../types';
+import type { AnalysisRun, Finding } from '../types';
 import { formatDistanceToNow, format } from 'date-fns';
 
 // ============ Analysis Progress ============
@@ -361,7 +360,6 @@ function LoopTimeline({ analyses }: { analyses: AnalysisRun[] }) {
 export function AnalysisPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'overview' | 'findings' | 'security' | 'fixpack' | 'verification' | 'timeline'>('overview');
   const [verifying, setVerifying] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -551,7 +549,7 @@ export function AnalysisPage() {
                       { key: 'securityScore', label: 'Security', weight: '25%' },
                       { key: 'verificationConfidence', label: 'Verification', weight: '10%' },
                     ].map(({ key, label, weight }) => {
-                      const value = (analysis.scoreBreakdown as Record<string, number>)[key] || 0;
+                      const value = (analysis.scoreBreakdown as unknown as Record<string, number>)[key] || 0;
                       return (
                         <div key={key} className="flex items-center gap-3">
                           <div className="w-36 text-xs text-[hsl(215,20%,55%)]">{label}</div>

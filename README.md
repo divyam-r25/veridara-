@@ -41,6 +41,21 @@ npm run dev
 ### 4. Open the App
 Go to **http://localhost:5173** and click **"Try Demo Mode"**.
 
+## Deploy to Render
+
+The root-level `render.yaml` deploys the frontend and API together as one web
+service, so browser requests and session cookies use the same origin.
+
+1. Push this repository (including `render.yaml`) to GitHub.
+2. In Render, choose **New** → **Blueprint** and select the repository and the
+   branch containing this file.
+3. Provide `MONGODB_URI` using your MongoDB Atlas connection string. The demo
+   needs MongoDB; Redis remains optional.
+4. Add GitHub and AI credentials only if you want those integrations. For
+   GitHub OAuth, set `GITHUB_CALLBACK_URL` to
+   `https://<your-render-service>.onrender.com/api/auth/github/callback` after
+   the first deploy.
+
 ---
 
 ## Demo Flow (no GitHub credentials needed)

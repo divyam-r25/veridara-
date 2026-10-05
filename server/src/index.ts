@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -84,6 +85,18 @@ app.use('/api/analyses', analysesRouter);
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
 });
+
+// In production, the Render build copies the Vite bundle here so the API and
+// client share one origin. This keeps session cookies and API requests working
+// without a cross-origin proxy.
+if (process.env.NODE_ENV === 'production') {
+  const clientDist = path.resolve(__dirname, '../public');
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 // Error handler (must be last)
 app.use(errorHandler);

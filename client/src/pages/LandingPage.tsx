@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Shield, GitBranch, RefreshCw, ArrowRight, Github } from 'lucide-react';
+import { Zap, Shield, GitBranch, RefreshCw, ArrowRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getGitHubAuthUrl } from '../services/api';
 import { Spinner } from '../components/ui';
 
 export function LandingPage() {
-  const { user, isAuthenticated, loginAsDemo, demoModeAvailable, loading } = useAuth();
+  const { isAuthenticated, loginAsDemo, demoModeAvailable, loading } = useAuth();
   const navigate = useNavigate();
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -66,7 +66,7 @@ export function LandingPage() {
             disabled={authLoading}
             className="btn-primary"
           >
-            {authLoading ? <Spinner size={14} /> : <Github size={15} />}
+            {authLoading ? <Spinner size={14} /> : <GitBranch size={15} />}
             Sign in with GitHub
           </button>
         </div>
@@ -98,7 +98,7 @@ export function LandingPage() {
             disabled={authLoading}
             className="btn-primary px-6 py-2.5 text-base"
           >
-            {authLoading ? <Spinner size={16} /> : <Github size={18} />}
+            {authLoading ? <Spinner size={16} /> : <GitBranch size={18} />}
             Start with GitHub
             <ArrowRight size={16} />
           </button>

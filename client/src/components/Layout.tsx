@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, GitBranch, Activity, Shield, History,
-  Settings, ChevronRight, Zap, LogOut, User, Menu, X
+  Settings, ChevronRight, Zap, LogOut, Menu, X
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 

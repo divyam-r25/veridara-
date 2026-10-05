@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { GitPullRequest, Play, ArrowRight, Plus, Loader2, ExternalLink } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { GitPullRequest, Play, Loader2 } from 'lucide-react';
 import { AppLayout, PageHeader } from '../components/Layout';
-import { EmptyState, Skeleton, Toast, DecisionBadge } from '../components/ui';
+import { EmptyState, Skeleton, Toast } from '../components/ui';
 import {
   getRepository, getRepositoryPulls, ingestPullRequest,
-  createAnalysis, getAvailableRepos
+  createAnalysis
 } from '../services/api';
 import type { GitHubPR } from '../types';
 import { useAuth } from '../hooks/useAuth';

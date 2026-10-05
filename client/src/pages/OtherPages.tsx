@@ -1,7 +1,6 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Activity, RefreshCw, ArrowRight, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Activity, RefreshCw, ArrowRight, AlertTriangle } from 'lucide-react';
 import { AppLayout, PageHeader } from '../components/Layout';
 import { DecisionBadge, ScoreRing, Skeleton, EmptyState } from '../components/ui';
 import { getAllAnalyses, getRepositories } from '../services/api';
