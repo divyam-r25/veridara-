@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       setUser(null);
-      setError('The ReleaseRadar API is not responding. Please wake or redeploy the Render service, then try again.');
+      setError('The Veridara API is not responding. Please wake or redeploy the Render service, then try again.');
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,7 @@
 {
-  "name": "release-radar-server",
+  "name": "veridara-server",
   "version": "1.0.0",
-  "description": "ReleaseRadar backend API server",
+  "description": "Veridara backend API server",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",

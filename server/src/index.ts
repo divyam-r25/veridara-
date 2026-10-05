@@ -7,7 +7,8 @@ import morgan from 'morgan';
 import session from 'express-session';
 import rateLimit from 'express-rate-limit';
 import { connectDatabase } from './config/database';
-import { connectRedis } from './config/redis';
+import { connectRedis, isRedisAvailable } from './config/redis';
+import mongoose from 'mongoose';
 import { initQueues } from './queues';
 import { errorHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/auth';
@@ -67,7 +68,7 @@ app.use(morgan('combined', {
 
 // Session
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'release-radar-dev-secret-change-in-production',
+  secret: process.env.SESSION_SECRET || 'veridara-dev-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -87,9 +88,24 @@ app.use('/api/repositories', repositoriesRouter);
 app.use('/api/pulls', pullRequestsRouter);
 app.use('/api/analyses', analysesRouter);
 
-// Health check
+// Liveness/readiness endpoint. It remains 200 while dependencies are down so
+// Render can start the service and surface dependency state to operators.
 app.get('/api/health', (_req, res) => {
-  res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
+  const databaseReady = mongoose.connection.readyState === mongoose.ConnectionStates.connected;
+  const redisReady = isRedisAvailable();
+  res.json({
+    success: true,
+    data: {
+      status: databaseReady ? (redisReady ? 'ok' : 'degraded') : 'degraded',
+      service: 'veridara-api',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.round(process.uptime()),
+      dependencies: {
+        mongodb: databaseReady ? 'connected' : 'unavailable',
+        redis: redisReady ? 'connected' : 'unavailable'
+      }
+    }
+  });
 });
 
 // In production, the Render build copies the Vite bundle here so the API and
@@ -110,7 +126,7 @@ app.use(errorHandler);
 async function start() {
   // Start listening first so the server is immediately available
   app.listen(PORT, () => {
-    logger.info(`🚀 ReleaseRadar server running on port ${PORT}`);
+    logger.info(`🚀 Veridara server running on port ${PORT}`);
     logger.info(`   Health: http://localhost:${PORT}/api/health`);
     logger.info(`   Demo login: POST http://localhost:${PORT}/api/auth/demo-login`);
   });

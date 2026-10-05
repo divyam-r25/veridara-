@@ -92,7 +92,7 @@ export function RepositoryDetailPage() {
             <EmptyState
               icon={<GitPullRequest size={28} />}
               title="No open pull requests"
-              description="Open a pull request on GitHub to analyze it with ReleaseRadar."
+              description="Open a pull request on GitHub to analyze it with Veridara."
             />
           ) : (
             <div className="space-y-2">

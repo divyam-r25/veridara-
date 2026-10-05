@@ -1,4 +1,4 @@
-# ReleaseRadar
+# Veridara
 
 **Analyze. Explain. Fix. Verify. Release.**
 
@@ -43,26 +43,25 @@ Go to **http://localhost:5173** and click **"Try Demo Mode"**.
 
 ## Deploy to Render
 
-The root-level `render.yaml` deploys the frontend and API together as one web
-service, so browser requests and session cookies use the same origin.
+The root-level `render.yaml` builds the API and frontend together for Render.
+The Vercel frontend can alternatively call the Render API through the public
+`VITE_API_URL` configured in `client/.env.production`.
 
 1. Push this repository (including `render.yaml`) to GitHub.
 2. In Render, choose **New** → **Blueprint** and select the repository and the
    branch containing this file.
-3. Provide `MONGODB_URI` using your MongoDB Atlas connection string. The demo
-   needs MongoDB; Redis remains optional.
-4. Add GitHub and AI credentials only if you want those integrations. For
-   GitHub OAuth, set `GITHUB_CALLBACK_URL` to
-   `https://<your-render-service>.onrender.com/api/auth/github/callback` after
-   the first deploy.
+3. Add the production environment variables listed below. MongoDB and Redis are
+   required for the full asynchronous analysis architecture.
+4. Set `GITHUB_CALLBACK_URL` to
+   `https://<your-render-service>.onrender.com/api/auth/github/callback` and
+   register that exact URL in the GitHub OAuth application.
 
 ### Vercel frontend
 
-The production client reads `client/.env.production`, which points API requests
-to the Render service. Configure Vercel with `client` as the project Root
-Directory, then redeploy after any API URL change. The Render service must allow
-the Vercel deployment URL in `CORS_ORIGINS`; the included Blueprint already
-allows the currently configured production URL.
+The root `vercel.json` builds `client` and publishes `client/dist`. Keep the
+Vercel project Root Directory at the repository root. Update `VITE_API_URL` if
+the Render API URL changes, then redeploy. The Render service must allow the
+Vercel URL in `CORS_ORIGINS`.
 
 ---
 
@@ -71,7 +70,7 @@ allows the currently configured production URL.
 1. Click **Try Demo Mode** on the landing page
 2. Click **Connect Repository** → select `payment-service`
 3. Open the repository → click **Analyze** on PR #42
-4. Watch ReleaseRadar analyze:
+4. Watch Veridara analyze:
    - 🔴 Hardcoded API secret (`sk-admin-...`)
    - 🔴 Missing authorization on `/payments/:id/refund`
    - 🔴 Command injection via `exec()`
@@ -108,7 +107,8 @@ Loop Engineering: Observe → Analyze → Explain → Plan → Fix → Verify �
 3. **Dependency Analyzer** — package.json change risk
 4. **API Analyzer** — route/spec breaking changes
 5. **AI Analyzer** — reasoning layer (optional, Zod-validated)
-6. **Scoring Engine** — weighted deterministic score (0–100)
+6. **Scoring Engine / Loop Controller** — turns findings into a release decision
+   and controls re-analysis after verification
 7. **Fix Pack Generator** — deterministic markdown remediation prompt
 
 ---
@@ -120,10 +120,14 @@ See `server/.env.example`. Key variables:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `MONGODB_URI` | Yes | MongoDB connection string |
+| `REDIS_URL` | Yes in production | Redis connection used by BullMQ workers |
 | `GITHUB_CLIENT_ID` | No | For real GitHub OAuth (demo works without) |
 | `GITHUB_CLIENT_SECRET` | No | For real GitHub OAuth |
+| `GITHUB_CALLBACK_URL` | Yes for OAuth | Public API callback URL registered with GitHub |
 | `AI_API_KEY` | No | OpenAI key (system works without AI) |
 | `SESSION_SECRET` | Yes | Change in production |
+| `CORS_ORIGINS` | Yes in production | Comma-separated allowed frontend origins |
+| `CLIENT_URL` | Yes in production | Frontend URL for OAuth redirects |
 
 ---
 

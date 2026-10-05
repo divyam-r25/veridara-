@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: releaseradar
+    name: veridara-api
     runtime: node
     plan: free
-    buildCommand: npm ci --include=dev --prefix server && npm ci --include=dev --prefix client && npm run build --prefix client && npm run build --prefix server && mkdir -p server/public && cp -R client/dist/. server/public/
+    buildCommand: npm ci --include=dev --production=false --prefix server && npm ci --include=dev --production=false --prefix client && npm run build --prefix client && npm run build --prefix server && mkdir -p server/public && cp -R client/dist/. server/public/
     startCommand: npm start --prefix server
     healthCheckPath: /api/health
     envVars:
@@ -13,15 +13,19 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false
+      - key: REDIS_URL
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: CORS_ORIGINS
-        value: https://releaseradar-2x9m.onrender.com,https://veridara-nwrfx8mzv-divyams-projects-f8cb1b3a.vercel.app
+        value: https://veridara.vercel.app
       - key: CLIENT_URL
-        value: https://veridara-nwrfx8mzv-divyams-projects-f8cb1b3a.vercel.app
+        value: https://veridara.vercel.app
       - key: GITHUB_CLIENT_ID
         sync: false
       - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CALLBACK_URL
         sync: false
       - key: GITHUB_APP_ID
         sync: false

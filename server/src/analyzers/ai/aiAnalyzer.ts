@@ -99,7 +99,7 @@ export function buildAIContext(
   return JSON.stringify(context, null, 2);
 }
 
-const SYSTEM_PROMPT = `You are the ReleaseRadar engineering analysis model.
+const SYSTEM_PROMPT = `You are the Veridara engineering analysis model.
 
 Your task is to reason about software changes using only the structured evidence provided.
 

@@ -73,7 +73,7 @@ export function LandingPage() {
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-900/50">
             <Zap size={16} className="text-white" />
           </div>
-          <span className="font-bold text-[hsl(210,40%,95%)]">ReleaseRadar</span>
+          <span className="font-bold text-[hsl(210,40%,95%)]">Veridara</span>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -104,7 +104,7 @@ export function LandingPage() {
         <p className="text-lg text-[hsl(215,20%,55%)] max-w-2xl mb-10 leading-relaxed">
           Analyze. Explain. Fix. Verify. Release.
           <br />
-          ReleaseRadar independently verifies whether AI-generated changes actually resolved the risks — or introduced new ones.
+          Veridara independently verifies whether AI-generated changes actually resolved the risks — or introduced new ones.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
@@ -194,7 +194,7 @@ export function LandingPage() {
       </main>
 
       <footer className="px-6 py-4 border-t border-[hsl(222,30%,15%)] text-center text-xs text-[hsl(215,20%,35%)]">
-        ReleaseRadar — AI is not the judge. AI is one component inside an engineering loop.
+        Veridara — AI is not the judge. AI is one component inside an engineering loop.
       </footer>
     </div>
   );

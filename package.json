@@ -1,10 +1,10 @@
 {
-  "name": "releaseradar",
+  "name": "veridara",
   "version": "1.0.0",
-  "description": "ReleaseRadar — Analyze. Explain. Fix. Verify. Release.",
+  "description": "Veridara — Analyze. Explain. Fix. Verify. Release.",
   "private": true,
   "scripts": {
-    "dev": "start \"ReleaseRadar Server\" /D server cmd /c \"npm run dev\" && start \"ReleaseRadar Client\" /D client cmd /c \"npm run dev\"",
+    "dev": "start \"Veridara Server\" /D server cmd /c \"npm run dev\" && start \"Veridara Client\" /D client cmd /c \"npm run dev\"",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
     "install:all": "npm install --prefix server && npm install --prefix client",

@@ -33,7 +33,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Zap size={16} className="text-white" />
           </div>
           <div>
-            <span className="font-bold text-[hsl(210,40%,95%)] text-sm">ReleaseRadar</span>
+            <span className="font-bold text-[hsl(210,40%,95%)] text-sm">Veridara</span>
             <div className="text-[10px] text-[hsl(215,20%,45%)] font-medium tracking-wide uppercase">
               Loop Engineering
             </div>
@@ -114,7 +114,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
               <Zap size={14} className="text-white" />
             </div>
-            <span className="font-bold text-sm text-[hsl(210,40%,95%)]">ReleaseRadar</span>
+            <span className="font-bold text-sm text-[hsl(210,40%,95%)]">Veridara</span>
           </div>
           <button
             onClick={() => setMobileOpen(!mobileOpen)}

@@ -82,7 +82,7 @@ authRouter.post('/demo-login', async (req: Request, res: Response, next: NextFun
       {
         githubUserId: 'demo-user-001',
         username: 'demo-developer',
-        email: 'demo@releaseradar.dev',
+        email: 'demo@veridara.dev',
         avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
       },
       { upsert: true, new: true }

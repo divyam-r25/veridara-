@@ -336,7 +336,7 @@ function generateDemoSummary(
   const criticalCount = findings.filter(f => f.severity === 'CRITICAL').length;
   const highCount = findings.filter(f => f.severity === 'HIGH').length;
 
-  return `ReleaseRadar demo analysis completed. Release Score: ${scores.releaseScore}/100 (${scores.decision.replace(/_/g, ' ')}). Security Score: ${scores.securityScore}/100. ${criticalCount} critical and ${highCount} high-severity findings detected. The release is ${scores.hardGates.length > 0 ? 'BLOCKED due to critical security issues' : 'ready for review'}. Use the AI Fix Pack to address the identified issues.`;
+  return `Veridara demo analysis completed. Release Score: ${scores.releaseScore}/100 (${scores.decision.replace(/_/g, ' ')}). Security Score: ${scores.securityScore}/100. ${criticalCount} critical and ${highCount} high-severity findings detected. The release is ${scores.hardGates.length > 0 ? 'BLOCKED due to critical security issues' : 'ready for review'}. Use the AI Fix Pack to address the identified issues.`;
 }
 
 function sleep(ms: number): Promise<void> {

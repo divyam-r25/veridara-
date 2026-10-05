@@ -236,7 +236,7 @@ function generateExecutiveSummary(
   const highCount = findings.filter(f => f.severity === 'HIGH').length;
   const mediumCount = findings.filter(f => f.severity === 'MEDIUM').length;
 
-  let summary = `ReleaseRadar analysis completed. `;
+  let summary = `Veridara analysis completed. `;
   summary += `Release Score: ${scores.releaseScore}/100 (${scores.decision.replace(/_/g, ' ')}). `;
   summary += `Security Score: ${scores.securityScore}/100. `;
 

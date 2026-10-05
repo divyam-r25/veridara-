@@ -287,7 +287,7 @@ export function SettingsPage() {
         </div>
 
         <div className="card p-5">
-          <h2 className="font-semibold text-[hsl(210,40%,90%)] text-sm mb-3">About ReleaseRadar</h2>
+          <h2 className="font-semibold text-[hsl(210,40%,90%)] text-sm mb-3">About Veridara</h2>
           <div className="space-y-2 text-sm text-[hsl(215,20%,55%)]">
             <p><strong className="text-[hsl(210,40%,80%)]">Version:</strong> 1.0.0 MVP</p>
             <p><strong className="text-[hsl(210,40%,80%)]">Architecture:</strong> Modular Monolith</p>

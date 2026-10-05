@@ -6,7 +6,7 @@ import { FixPack } from '../models/FixPack';
 import { PullRequest } from '../models/PullRequest';
 import { Repository } from '../models/Repository';
 import { AuditLog } from '../models/AuditLog';
-import { enqueueAnalysis } from '../queues';
+import { dispatchLoopIteration } from '../services/loopController';
 import { createError } from '../middleware/errorHandler';
 import { z } from 'zod';
 
@@ -62,12 +62,9 @@ analysesRouter.post('/', async (req: Request, res: Response, next: NextFunction)
       metadata: { repositoryId: repo.id, prNumber: pr.githubPrNumber, iterationNumber }
     });
 
-    if (isDemoAnalysis) {
-      const { runDemoAnalysis } = await import('../demo/demoAnalysis');
-      setTimeout(() => runDemoAnalysis(analysisRun.id, pr.id, repo.id).catch(console.error), 200);
-    } else {
-      await enqueueAnalysis(analysisRun.id);
-    }
+    await dispatchLoopIteration(analysisRun.id, isDemoAnalysis
+      ? { demo: true, pullRequestId: pr.id, repositoryId: repo.id }
+      : { demo: false });
 
     res.status(201).json({ success: true, data: analysisRun });
   } catch (err) {
@@ -198,12 +195,10 @@ analysesRouter.post('/:id/verify', async (req: Request, res: Response, next: Nex
 
     const isDemoRepo = repo.owner === 'demo-developer' || repo.githubRepoId.startsWith('demo-') || repo.owner === '';
 
-    if (isDemoRepo || !repo.githubRepoId || Number(repo.githubRepoId) > 999998000) {
-      const { runDemoVerification } = await import('../demo/demoAnalysis');
-      setTimeout(() => runDemoVerification(newAnalysis.id, analysis.id, pr.id, repo.id).catch(console.error), 200);
-    } else {
-      await enqueueAnalysis(newAnalysis.id);
-    }
+    await dispatchLoopIteration(newAnalysis.id,
+      isDemoRepo || !repo.githubRepoId || Number(repo.githubRepoId) > 999998000
+        ? { demo: true, previousAnalysisId: analysis.id, pullRequestId: pr.id, repositoryId: repo.id }
+        : { demo: false });
 
     await AuditLog.create({
       userId: req.session.userId,

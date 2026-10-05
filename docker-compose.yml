@@ -3,13 +3,13 @@ version: '3.8'
 services:
   mongodb:
     image: mongo:7.0
-    container_name: releaseradar-mongodb
+    container_name: veridara-mongodb
     ports:
       - '27017:27017'
     volumes:
       - mongodb_data:/data/db
     environment:
-      MONGO_INITDB_DATABASE: releaseradar
+      MONGO_INITDB_DATABASE: veridara
     healthcheck:
       test: ['CMD', 'mongosh', '--eval', 'db.adminCommand("ping")']
       interval: 10s
@@ -18,7 +18,7 @@ services:
 
   redis:
     image: redis:7.2-alpine
-    container_name: releaseradar-redis
+    container_name: veridara-redis
     ports:
       - '6379:6379'
     volumes:
