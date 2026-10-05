@@ -51,6 +51,15 @@ export async function getOctokitForInstallation(installationId: string): Promise
   return new Octokit({ auth: token });
 }
 
+/** Prefer short-lived GitHub App installation tokens for repository work. */
+export async function getOctokitForRepository(installationId?: string, userToken?: string): Promise<Octokit> {
+  if (installationId && process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY) {
+    return getOctokitForInstallation(installationId);
+  }
+  if (userToken) return getOctokitForUser(userToken);
+  throw new Error('No GitHub App installation or user OAuth token is available');
+}
+
 // Exchange OAuth code for access token
 export async function exchangeCodeForToken(code: string): Promise<string> {
   const clientId = process.env.GITHUB_CLIENT_ID;
@@ -122,16 +131,16 @@ export async function getPullRequest(token: string, owner: string, repo: string,
 }
 
 // Get files changed in a PR
-export async function getPRFiles(token: string, owner: string, repo: string, pull_number: number): Promise<GitHubFile[]> {
-  const octokit = getOctokitForUser(token);
+export async function getPRFiles(auth: string | Octokit, owner: string, repo: string, pull_number: number): Promise<GitHubFile[]> {
+  const octokit = typeof auth === 'string' ? getOctokitForUser(auth) : auth;
   const { data } = await octokit.pulls.listFiles({ owner, repo, pull_number, per_page: 100 });
   return data as unknown as GitHubFile[];
 }
 
 // Get file content at a specific ref
-export async function getFileContent(token: string, owner: string, repo: string, path: string, ref: string): Promise<string | null> {
+export async function getFileContent(auth: string | Octokit, owner: string, repo: string, path: string, ref: string): Promise<string | null> {
   try {
-    const octokit = getOctokitForUser(token);
+    const octokit = typeof auth === 'string' ? getOctokitForUser(auth) : auth;
     const { data } = await octokit.repos.getContent({ owner, repo, path, ref });
 
     if ('content' in data && data.content) {

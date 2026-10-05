@@ -1,6 +1,6 @@
 import { IFinding } from '../../models/Finding';
 import { GitHubFile } from '../../github/githubService';
-import { redactSecretsFromContent, isSensitiveFile } from '../security/securityAnalyzer';
+import { firewallRepositoryContext } from '../../services/contextFirewall';
 import { logger } from '../../utils/logger';
 import { z } from 'zod';
 
@@ -77,9 +77,7 @@ export function buildAIContext(
   const sanitizedDiffs = input.diffs.map(d => ({
     filename: d.filename,
     // Redact any secrets from diffs before sending to AI
-    patch: isSensitiveFile(d.filename)
-      ? '[REDACTED: sensitive file]'
-      : redactSecretsFromContent(d.patch || '').substring(0, 3000)
+    patch: firewallRepositoryContext(d.filename, d.patch || '')
   }));
 
   const context = {

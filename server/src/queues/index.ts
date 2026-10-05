@@ -5,6 +5,8 @@ import { logger } from '../utils/logger';
 
 let analysisQueue: Queue | null = null;
 let analysisWorker: Worker | null = null;
+let webhookQueue: Queue | null = null;
+let webhookWorker: Worker | null = null;
 
 export async function initQueues(): Promise<void> {
   try {
@@ -32,6 +34,16 @@ export async function initQueues(): Promise<void> {
         concurrency: 3,
         limiter: { max: 10, duration: 60000 }
       }
+    );
+
+    webhookQueue = new Queue('webhook-events', { connection });
+    webhookWorker = new Worker(
+      'webhook-events',
+      async (job: Job) => {
+        const { processWebhookEvent } = await import('../routes/webhooks');
+        await processWebhookEvent(job.data.webhookEventId, job.data.eventType, job.data.payload);
+      },
+      { connection, concurrency: 10 }
     );
 
     analysisWorker.on('completed', (job) => {
@@ -67,4 +79,15 @@ export async function enqueueAnalysis(analysisRunId: string): Promise<void> {
 
 export function getAnalysisQueue(): Queue | null {
   return analysisQueue;
+}
+
+export async function enqueueWebhookEvent(webhookEventId: string, eventType: string, payload: Record<string, unknown>): Promise<void> {
+  if (!webhookQueue) throw new Error('Webhook queue is unavailable');
+  await webhookQueue.add('process-webhook', { webhookEventId, eventType, payload }, {
+    jobId: `webhook-${webhookEventId}`,
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 1000 },
+    removeOnComplete: 500,
+    removeOnFail: 500
+  });
 }

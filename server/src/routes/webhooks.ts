@@ -4,7 +4,7 @@ import { WebhookEvent } from '../models/WebhookEvent';
 import { Repository } from '../models/Repository';
 import { PullRequest } from '../models/PullRequest';
 import { AnalysisRun } from '../models/AnalysisRun';
-import { enqueueAnalysis } from '../queues';
+import { enqueueAnalysis, enqueueWebhookEvent } from '../queues';
 import { logger } from '../utils/logger';
 
 export const webhooksRouter = Router();
@@ -74,14 +74,11 @@ webhooksRouter.post(
       return;
     }
 
-    // Process event asynchronously
-    processWebhookEvent(webhookEvent.id, eventType, payload).catch(err => {
-      logger.error(`Webhook processing failed: ${err instanceof Error ? err.message : String(err)}`);
-    });
+    await enqueueWebhookEvent(webhookEvent.id, eventType, payload);
   }
 );
 
-async function processWebhookEvent(
+export async function processWebhookEvent(
   webhookEventId: string,
   eventType: string,
   payload: Record<string, unknown>

@@ -8,6 +8,7 @@ import session from 'express-session';
 import rateLimit from 'express-rate-limit';
 import { connectDatabase } from './config/database';
 import { connectRedis, isRedisAvailable } from './config/redis';
+import { RedisSessionStore } from './config/redisSessionStore';
 import mongoose from 'mongoose';
 import { initQueues } from './queues';
 import { errorHandler } from './middleware/errorHandler';
@@ -68,6 +69,7 @@ app.use(morgan('combined', {
 
 // Session
 app.use(session({
+  store: new RedisSessionStore(),
   secret: process.env.SESSION_SECRET || 'veridara-dev-secret-change-in-production',
   resave: false,
   saveUninitialized: false,

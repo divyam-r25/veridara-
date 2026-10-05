@@ -11,7 +11,7 @@ import { analyzeAPIChanges } from '../analyzers/api/apiAnalyzer';
 import { runAIAnalysis } from '../analyzers/ai/aiAnalyzer';
 import { calculateScores } from '../scoring/scoringEngine';
 import { generateFixPack } from '../reports/fixPackGenerator';
-import { getPRFiles, getFileContent, listPullRequests, getPullRequest } from '../github/githubService';
+import { getPRFiles, getFileContent, getOctokitForRepository } from '../github/githubService';
 import { logger } from '../utils/logger';
 
 export async function runAnalysis(analysisRunId: string): Promise<void> {
@@ -25,9 +25,7 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
   if (!repository) throw new Error('Repository not found');
 
   const user = await User.findOne({ _id: repository.userId }).select('+githubAccessToken');
-  if (!user?.githubAccessToken) throw new Error('User GitHub token not found');
-
-  const token = user.githubAccessToken;
+  const octokit = await getOctokitForRepository(repository.installationId, user?.githubAccessToken);
   const { owner, name } = repository;
 
   logger.info(`Starting analysis ${analysisRunId} for ${owner}/${name} PR#${pullRequest.githubPrNumber}`);
@@ -37,7 +35,7 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
     await updateProgress(analysisRun, 'TRIAGED', 'fetchingPR', 'IN_PROGRESS');
 
     // Step 1: Fetch PR files
-    const files = await getPRFiles(token, owner, name, pullRequest.githubPrNumber);
+    const files = await getPRFiles(octokit, owner, name, pullRequest.githubPrNumber);
 
     await updateProgress(analysisRun, 'CONTEXT_BUILT', 'fetchingPR', 'DONE');
     await updateProgress(analysisRun, 'CONTEXT_BUILT', 'buildingContext', 'IN_PROGRESS');
@@ -54,12 +52,12 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
 
     for (const file of textFiles.slice(0, 30)) {
       if (file.status !== 'removed') {
-        const content = await getFileContent(token, owner, name, file.filename, pullRequest.headSha);
+        const content = await getFileContent(octokit, owner, name, file.filename, pullRequest.headSha);
         if (content) fileContents.set(file.filename, content);
       }
 
       if (file.status !== 'added') {
-        const baseContent = await getFileContent(token, owner, name, file.filename, pullRequest.baseSha);
+        const baseContent = await getFileContent(octokit, owner, name, file.filename, pullRequest.baseSha);
         if (baseContent) baseContents.set(file.filename, baseContent);
       }
     }
