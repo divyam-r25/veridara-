@@ -50,6 +50,20 @@ describe('Scoring Engine', () => {
     expect(result.securityScore).toBe(10);
   });
 
+  test('cannot report READY when a required analyzer is unavailable', () => {
+    const result = calculateScores({
+      changeRiskScore: 100,
+      testReadinessScore: 100,
+      apiCompatibilityScore: 100,
+      dependencySafetyScore: 100,
+      securityScore: 0,
+      verificationConfidence: 100,
+      findings: [{ category: 'INFRASTRUCTURE', severity: 'HIGH', confidence: 1, title: 'Security analyzer unavailable', status: 'OPEN' }]
+    });
+    expect(result.decision).not.toBe('READY');
+    expect(result.securityScore).toBe(0);
+  });
+
   test('READY_WITH_REVIEW for 80-89 score', () => {
     const result = calculateScores({
       changeRiskScore: 90,

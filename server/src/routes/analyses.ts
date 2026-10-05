@@ -205,7 +205,7 @@ analysesRouter.post('/:id/verify', async (req: Request, res: Response, next: Nex
     await dispatchLoopIteration(newAnalysis.id,
       isDemoRepo || !repo.githubRepoId || Number(repo.githubRepoId) > 999998000
         ? { demo: true, previousAnalysisId: analysis.id, pullRequestId: pr.id, repositoryId: repo.id }
-        : { demo: false });
+        : { demo: false, previousAnalysisId: analysis.id });
 
     await AuditLog.create({
       userId: req.session.userId,

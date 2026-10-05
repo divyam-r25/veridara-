@@ -17,8 +17,9 @@ export function isRedisAvailable(): boolean {
 }
 
 export async function connectRedis(): Promise<void> {
-  const url = (process.env.NODE_ENV === 'test' ? process.env.TEST_REDIS_URL : process.env.REDIS_URL)
-    || 'redis://localhost:6379';
+  const isTest = process.env.NODE_ENV === 'test';
+  const url = isTest ? process.env.TEST_REDIS_URL : (process.env.REDIS_URL || 'redis://localhost:6379');
+  if (!url) throw new Error('TEST_REDIS_URL is required when NODE_ENV=test');
 
   redisClient = new Redis(url, {
     maxRetriesPerRequest: null,

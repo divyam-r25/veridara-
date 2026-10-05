@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/auth';
 import { Repository } from '../models/Repository';
 import { User } from '../models/User';
 import { AuditLog } from '../models/AuditLog';
-import { listUserRepos, getRepo } from '../github/githubService';
+import { listUserRepos, getRepo, getRepositoryInstallation, getOctokitForRepository, listPullRequests } from '../github/githubService';
 import { createError } from '../middleware/errorHandler';
 import { z } from 'zod';
 import { DEMO_REPOSITORIES } from '../demo/demoData';
@@ -33,7 +33,11 @@ repositoriesRouter.get('/available', async (req: Request, res: Response, next: N
     }
 
     const repos = await listUserRepos(user.githubAccessToken);
-    res.json({ success: true, data: repos });
+    res.json({
+      success: true,
+      data: repos,
+      githubAppConfigured: Boolean(process.env.GITHUB_APP_ID?.trim() && process.env.GITHUB_APP_PRIVATE_KEY?.trim())
+    });
   } catch (err) {
     next(err);
   }
@@ -62,6 +66,7 @@ repositoriesRouter.post('/connect', async (req: Request, res: Response, next: Ne
     let language: string | undefined;
     let description: string | undefined;
     let isPrivate: boolean;
+    let installationId: string | undefined;
 
     // Demo mode
     if (user.githubUserId === 'demo-user-001' || !user.githubAccessToken) {
@@ -71,6 +76,7 @@ repositoriesRouter.post('/connect', async (req: Request, res: Response, next: Ne
       language = demoRepo?.language;
       description = demoRepo?.description;
       isPrivate = demoRepo?.private ?? false;
+      installationId = 'demo-installation';
     } else {
       const ghRepo = await getRepo(user.githubAccessToken, owner, name);
       repoId = String(ghRepo.id);
@@ -78,14 +84,19 @@ repositoriesRouter.post('/connect', async (req: Request, res: Response, next: Ne
       language = ghRepo.language ?? undefined;   // convert null → undefined
       description = ghRepo.description ?? undefined;
       isPrivate = ghRepo.private;
+      const installation = await getRepositoryInstallation(owner, name);
+      if (!installation) {
+        return next(createError('Install the Veridara GitHub App for this repository before connecting it.', 409, 'GITHUB_APP_NOT_INSTALLED'));
+      }
+      installationId = installation;
     }
 
     const existing = await Repository.findOne({ userId: req.session.userId, githubRepoId: repoId });
-    if (existing) {
+    if (existing?.installationId) {
       return res.json({ success: true, data: existing, message: 'Repository already connected' });
     }
 
-    const repo = await Repository.create({
+    const repo = existing || await Repository.create({
       githubRepoId: repoId,
       userId: req.session.userId,
       owner,
@@ -95,8 +106,14 @@ repositoriesRouter.post('/connect', async (req: Request, res: Response, next: Ne
       language,
       description,
       private: isPrivate,
-      enabled: true
+      enabled: true,
+      installationId
     });
+    if (existing) {
+      existing.installationId = installationId;
+      existing.enabled = true;
+      await existing.save();
+    }
 
     await AuditLog.create({
       userId: req.session.userId,
@@ -138,9 +155,9 @@ repositoriesRouter.get('/:id/pulls', async (req: Request, res: Response, next: N
       return res.json({ success: true, data: DEMO_PULL_REQUESTS, demoMode: true });
     }
 
-    const { listPullRequests } = await import('../github/githubService');
     const state = (req.query.state as 'open' | 'closed' | 'all') || 'open';
-    const prs = await listPullRequests(user.githubAccessToken, repo.owner, repo.name, state);
+    if (!repo.installationId) return next(createError('GitHub App is not installed for this repository.', 409, 'GITHUB_APP_NOT_INSTALLED'));
+    const prs = await listPullRequests(await getOctokitForRepository(repo.installationId), repo.owner, repo.name, state);
 
     res.json({ success: true, data: prs });
   } catch (err) {

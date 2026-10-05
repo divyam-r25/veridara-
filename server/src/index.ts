@@ -90,15 +90,16 @@ app.use('/api/repositories', repositoriesRouter);
 app.use('/api/pulls', pullRequestsRouter);
 app.use('/api/analyses', analysesRouter);
 
-// Liveness/readiness endpoint. It remains 200 while dependencies are down so
-// Render can start the service and surface dependency state to operators.
+// Readiness endpoint. Production traffic must not be directed to an instance
+// that cannot reach either persistent dependency.
 app.get('/api/health', (_req, res) => {
   const databaseReady = mongoose.connection.readyState === mongoose.ConnectionStates.connected;
   const redisReady = isRedisAvailable();
-  res.json({
+  const ready = databaseReady && redisReady;
+  res.status(process.env.NODE_ENV === 'production' && !ready ? 503 : 200).json({
     success: true,
     data: {
-      status: databaseReady ? (redisReady ? 'ok' : 'degraded') : 'degraded',
+      status: ready ? 'ok' : 'degraded',
       service: 'veridara-api',
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
@@ -126,7 +127,8 @@ if (process.env.NODE_ENV === 'production') {
 app.use(errorHandler);
 
 async function start() {
-  // Start listening first so the server is immediately available
+  // Listen first for diagnostics, then establish backing services. Readiness
+  // remains 503 in production until both dependencies are connected.
   app.listen(PORT, () => {
     logger.info(`🚀 Veridara server running on port ${PORT}`);
     logger.info(`   Health: http://localhost:${PORT}/api/health`);
@@ -145,7 +147,7 @@ async function start() {
     await connectRedis();
     await initQueues();
   } catch (err) {
-    logger.warn('⚠️  Redis unavailable — analyses will run inline (no queue)');
+    logger.warn('⚠️  Redis unavailable — production analyses and sessions remain unavailable');
   }
 }
 

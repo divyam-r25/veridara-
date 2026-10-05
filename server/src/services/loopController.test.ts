@@ -11,4 +11,10 @@ describe('Loop Controller transitions', () => {
     expect(canTransition('FIX_PLAN_READY', 'RESOLVED')).toBe(false);
     expect(canTransition('RESOLVED', 'REANALYZING')).toBe(false);
   });
+
+  it('permits verification only after context is built', () => {
+    expect(canTransition('CONTEXT_BUILT', 'REANALYZING')).toBe(true);
+    expect(canTransition('TRIAGED', 'VERIFYING')).toBe(false);
+    expect(canTransition('VERIFYING', 'AWAITING_FIX')).toBe(false);
+  });
 });

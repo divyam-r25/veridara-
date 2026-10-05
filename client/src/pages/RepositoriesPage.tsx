@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { GitBranch, Plus, Lock, Globe, Star, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { GitBranch, Plus, Lock, Globe, Star, ArrowRight, Check, Loader2, ShieldAlert } from 'lucide-react';
 import { AppLayout, PageHeader } from '../components/Layout';
 import { EmptyState, Skeleton, Toast } from '../components/ui';
 import { getRepositories, getAvailableRepos, connectRepository } from '../services/api';
@@ -37,6 +37,9 @@ function RepoCard({ repo, onSelect }: { repo: Repository; onSelect: () => void }
                 {repo.language}
               </span>}
               <span>Updated {formatDistanceToNow(new Date(repo.updatedAt), { addSuffix: true })}</span>
+              <span className={repo.installationId ? 'text-emerald-400' : 'text-amber-400'}>
+                {repo.installationId ? 'GitHub App installed · Ready' : 'GitHub App not installed'}
+              </span>
             </div>
           </div>
         </div>
@@ -119,8 +122,10 @@ export function RepositoriesPage() {
       setConnectedRepos(prev => new Set([...prev, key]));
       queryClient.invalidateQueries({ queryKey: ['repositories'] });
       setToast({ message: `${repo.name} connected successfully!`, type: 'success' });
-    } catch {
-      setToast({ message: 'Failed to connect repository', type: 'error' });
+    } catch (error: unknown) {
+      const response = error as { response?: { data?: { error?: { code?: string; message?: string } } } };
+      const message = response.response?.data?.error?.message;
+      setToast({ message: message || 'Failed to connect repository', type: 'error' });
     } finally {
       setConnectingRepos(prev => { const s = new Set(prev); s.delete(key); return s; });
     }
@@ -149,6 +154,9 @@ export function RepositoriesPage() {
             <h2 className="font-semibold text-[hsl(210,40%,90%)] text-sm mb-4">
               Available Repositories
             </h2>
+            <p className="text-xs text-[hsl(215,20%,50%)] mb-3 flex items-center gap-1">
+              <ShieldAlert size={12} /> GitHub account access lists repositories; a Veridara GitHub App installation is required before a repository is analysis-ready.
+            </p>
             {loadingAvailable ? (
               <div className="space-y-2">
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-lg" />)}

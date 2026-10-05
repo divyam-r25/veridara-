@@ -34,8 +34,8 @@ export function getOctokitForUser(token: string): Octokit {
 
 // Get an Octokit instance using GitHub App installation
 export async function getOctokitForInstallation(installationId: string): Promise<Octokit> {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  const appId = process.env.GITHUB_APP_ID?.trim();
+  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.trim().replace(/\\n/g, '\n');
 
   if (!appId || !privateKey) {
     throw new Error('GitHub App credentials not configured');
@@ -51,19 +51,37 @@ export async function getOctokitForInstallation(installationId: string): Promise
   return new Octokit({ auth: token });
 }
 
+/** Return the installation that gives the Veridara App access to this repository. */
+export async function getRepositoryInstallation(owner: string, repo: string): Promise<string | null> {
+  const appId = process.env.GITHUB_APP_ID?.trim();
+  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.trim().replace(/\\n/g, '\n');
+  if (!appId || !privateKey) throw new Error('GitHub App credentials not configured');
+  const appAuth = createAppAuth({ appId, privateKey });
+  const { token } = await appAuth({ type: 'app' });
+  try {
+    const { data } = await new Octokit({ auth: token }).apps.getRepoInstallation({ owner, repo });
+    return String(data.id);
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error && 'status' in error && (error as { status: number }).status === 404) return null;
+    throw error;
+  }
+}
+
 /** Prefer short-lived GitHub App installation tokens for repository work. */
 export async function getOctokitForRepository(installationId?: string, userToken?: string): Promise<Octokit> {
   if (installationId && process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY) {
     return getOctokitForInstallation(installationId);
   }
-  if (userToken) return getOctokitForUser(userToken);
-  throw new Error('No GitHub App installation or user OAuth token is available');
+  // OAuth is used only to identify the user. Repository access must use an
+  // installation token with repository-scoped, short-lived credentials.
+  void userToken;
+  throw new Error('GitHub App is not installed for this repository');
 }
 
 // Exchange OAuth code for access token
 export async function exchangeCodeForToken(code: string): Promise<string> {
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+  const clientId = process.env.GITHUB_CLIENT_ID?.trim();
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
 
   if (!clientId || !clientSecret) {
     throw new Error('GitHub OAuth credentials not configured');
@@ -117,15 +135,15 @@ export async function getRepo(token: string, owner: string, repo: string) {
 }
 
 // List pull requests for a repository
-export async function listPullRequests(token: string, owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'open') {
-  const octokit = getOctokitForUser(token);
+export async function listPullRequests(auth: string | Octokit, owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'open') {
+  const octokit = typeof auth === 'string' ? getOctokitForUser(auth) : auth;
   const { data } = await octokit.pulls.list({ owner, repo, state, per_page: 30 });
   return data;
 }
 
 // Get a specific PR with full details
-export async function getPullRequest(token: string, owner: string, repo: string, pull_number: number): Promise<GitHubPR> {
-  const octokit = getOctokitForUser(token);
+export async function getPullRequest(auth: string | Octokit, owner: string, repo: string, pull_number: number): Promise<GitHubPR> {
+  const octokit = typeof auth === 'string' ? getOctokitForUser(auth) : auth;
   const { data } = await octokit.pulls.get({ owner, repo, pull_number });
   return data as unknown as GitHubPR;
 }

@@ -13,6 +13,7 @@ import { calculateScores } from '../scoring/scoringEngine';
 import { generateFixPack } from '../reports/fixPackGenerator';
 import { getPRFiles, getFileContent, getOctokitForRepository } from '../github/githubService';
 import { logger } from '../utils/logger';
+import { transitionAnalysisRun, updateAnalysisRun } from './loopController';
 
 export async function runAnalysis(analysisRunId: string): Promise<void> {
   const analysisRun = await AnalysisRun.findById(analysisRunId);
@@ -73,10 +74,28 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
       analyzeAPIChanges(files, analysisRunId, repository.id, fileContents, baseContents)
     ]);
 
-    const changeAnalysis = changeResult.status === 'fulfilled' ? changeResult.value : { findings: [], changeRiskScore: 50, testReadinessScore: 50, stats: { totalFiles: files.length, linesAdded: 0, linesRemoved: 0, sourceToTestRatio: 0 } };
-    const securityAnalysis = securityResult.status === 'fulfilled' ? securityResult.value : { findings: [], securityScore: 100, contextWarnings: [], secretsDetected: false, promptInjectionDetected: false, sensitiveFilesDetected: false };
-    const dependencyAnalysis = dependencyResult.status === 'fulfilled' ? dependencyResult.value : { findings: [], dependencySafetyScore: 100, changes: [] };
-    const apiAnalysis = apiResult.status === 'fulfilled' ? apiResult.value : { findings: [], apiCompatibilityScore: 100, breakingChanges: [] };
+    const unavailable = (name: string, reason: unknown): Partial<import('../models/Finding').IFinding> => ({
+      analysisRunId,
+      repositoryId: repository.id,
+      category: 'INFRASTRUCTURE',
+      severity: 'HIGH',
+      confidence: 1,
+      title: `${name} analyzer unavailable`,
+      summary: `This check did not complete and must not be interpreted as a pass: ${reason instanceof Error ? reason.message : String(reason)}`,
+      evidence: [{ file: 'veridara', description: `${name} analyzer failure` }],
+      affectedFiles: [],
+      impact: 'Release safety cannot be established while this analyzer is unavailable.',
+      recommendation: 'Restore the analyzer and re-run the analysis.',
+      suggestedTests: [],
+      verificationCriteria: [`${name} analyzer completes successfully`],
+      detectionMethod: 'HEURISTIC',
+      status: 'OPEN'
+    });
+    const failures: Partial<import('../models/Finding').IFinding>[] = [];
+    const changeAnalysis = changeResult.status === 'fulfilled' ? changeResult.value : (failures.push(unavailable('Change', changeResult.reason)), { findings: [], changeRiskScore: 0, testReadinessScore: 0, stats: { totalFiles: files.length, linesAdded: 0, linesRemoved: 0, sourceToTestRatio: 0 } });
+    const securityAnalysis = securityResult.status === 'fulfilled' ? securityResult.value : (failures.push(unavailable('Security', securityResult.reason)), { findings: [], securityScore: 0, contextWarnings: ['Security analysis unavailable'], secretsDetected: false, promptInjectionDetected: false, sensitiveFilesDetected: false });
+    const dependencyAnalysis = dependencyResult.status === 'fulfilled' ? dependencyResult.value : (failures.push(unavailable('Dependency', dependencyResult.reason)), { findings: [], dependencySafetyScore: 0, changes: [] });
+    const apiAnalysis = apiResult.status === 'fulfilled' ? apiResult.value : (failures.push(unavailable('API compatibility', apiResult.reason)), { findings: [], apiCompatibilityScore: 0, breakingChanges: [] });
 
     await updateProgress(analysisRun, 'ANALYZING', 'runningChecks', 'DONE');
     await updateProgress(analysisRun, 'ANALYZING', 'aiReasoning', 'IN_PROGRESS');
@@ -85,7 +104,8 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
     const allDeterministicFindings = [
       ...changeAnalysis.findings,
       ...dependencyAnalysis.findings,
-      ...apiAnalysis.findings
+      ...apiAnalysis.findings,
+      ...failures
     ];
 
     // Step 4: Run AI analysis
@@ -147,9 +167,9 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
     const scores = calculateScores({
       changeRiskScore: changeAnalysis.changeRiskScore || 50,
       testReadinessScore: changeAnalysis.testReadinessScore || 50,
-      apiCompatibilityScore: apiAnalysis.apiCompatibilityScore || 100,
-      dependencySafetyScore: dependencyAnalysis.dependencySafetyScore || 100,
-      securityScore: securityAnalysis.securityScore || 100,
+      apiCompatibilityScore: apiAnalysis.apiCompatibilityScore,
+      dependencySafetyScore: dependencyAnalysis.dependencySafetyScore,
+      securityScore: securityAnalysis.securityScore,
       verificationConfidence: 0, // Not verified yet
       findings: allFindings
     });
@@ -158,8 +178,7 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
     await updateProgress(analysisRun, 'FIX_PLAN_READY', 'generatingReport', 'IN_PROGRESS');
 
     // Step 7: Update analysis run with results
-    const updatedRun = await AnalysisRun.findByIdAndUpdate(analysisRunId, {
-      status: 'FIX_PLAN_READY',
+    const updatedRun = await transitionAnalysisRun(analysisRunId, 'FIX_PLAN_READY', {
       releaseScore: scores.releaseScore,
       securityScore: scores.securityScore,
       verificationConfidence: 0,
@@ -174,7 +193,7 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
       aiAvailable: aiResult.available,
       'analysisProgress.generatingReport': 'IN_PROGRESS',
       completedAt: new Date()
-    }, { new: true });
+    });
 
     // Step 8: Generate and persist Fix Pack
     if (updatedRun) {
@@ -196,8 +215,7 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
       });
     }
 
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, {
-      status: 'AWAITING_FIX',
+    await transitionAnalysisRun(analysisRunId, failures.length ? 'PARTIAL' : 'AWAITING_FIX', {
       'analysisProgress.generatingReport': 'DONE'
     });
 
@@ -205,24 +223,27 @@ export async function runAnalysis(analysisRunId: string): Promise<void> {
 
   } catch (err) {
     logger.error(`Analysis ${analysisRunId} failed:`, err instanceof Error ? err.message : String(err));
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, {
-      status: 'FAILED',
-      completedAt: new Date()
-    });
+    const current = await AnalysisRun.findById(analysisRunId).select('status');
+    if (current && canFail(current.status)) await transitionAnalysisRun(analysisRunId, 'FAILED', { completedAt: new Date() });
     throw err;
   }
 }
 
 async function updateProgress(
   run: IAnalysisRun,
-  status: string,
+  status: import('../models/AnalysisRun').AnalysisStatus,
   step: string,
   stepStatus: string
 ): Promise<void> {
-  await AnalysisRun.findByIdAndUpdate(run._id, {
-    status,
-    [`analysisProgress.${step}`]: stepStatus
-  });
+  const patch = { [`analysisProgress.${step}`]: stepStatus };
+  const current = await AnalysisRun.findById(run._id).select('status');
+  if (!current) throw new Error(`Analysis run ${run.id} not found`);
+  if (current.status === status) await updateAnalysisRun(run.id, patch);
+  else await transitionAnalysisRun(run.id, status, patch);
+}
+
+function canFail(status: import('../models/AnalysisRun').AnalysisStatus): boolean {
+  return !['RESOLVED', 'PARTIAL', 'REGRESSED', 'UNRESOLVED', 'COMPLETED', 'FAILED', 'PARTIALLY_COMPLETED'].includes(status);
 }
 
 function generateExecutiveSummary(

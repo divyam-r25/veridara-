@@ -2,8 +2,9 @@ import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 
 export async function connectDatabase(): Promise<void> {
-  const uri = (process.env.NODE_ENV === 'test' ? process.env.TEST_MONGODB_URI : process.env.MONGODB_URI)
-    || 'mongodb://localhost:27017/veridara';
+  const isTest = process.env.NODE_ENV === 'test';
+  const uri = isTest ? process.env.TEST_MONGODB_URI : (process.env.MONGODB_URI || 'mongodb://localhost:27017/veridara');
+  if (!uri) throw new Error('TEST_MONGODB_URI is required when NODE_ENV=test');
 
   const options: mongoose.ConnectOptions = {
     serverSelectionTimeoutMS: 10000, // 10s timeout before giving up

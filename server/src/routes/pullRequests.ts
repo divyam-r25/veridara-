@@ -5,7 +5,7 @@ import { Repository } from '../models/Repository';
 import { User } from '../models/User';
 import { AnalysisRun } from '../models/AnalysisRun';
 import { createError } from '../middleware/errorHandler';
-import { getPullRequest } from '../github/githubService';
+import { getPullRequest, getOctokitForRepository } from '../github/githubService';
 import { z } from 'zod';
 
 export const pullRequestsRouter = Router();
@@ -65,7 +65,8 @@ pullRequestsRouter.post('/ingest', async (req: Request, res: Response, next: Nex
         state: 'open'
       };
     } else {
-      prData = await getPullRequest(user.githubAccessToken, repo.owner, repo.name, prNumber);
+      if (!repo.installationId) return next(createError('GitHub App is not installed for this repository.', 409, 'GITHUB_APP_NOT_INSTALLED'));
+      prData = await getPullRequest(await getOctokitForRepository(repo.installationId), repo.owner, repo.name, prNumber);
     }
 
     // Upsert PR

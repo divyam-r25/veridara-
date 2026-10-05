@@ -29,4 +29,13 @@ export class RedisSessionStore extends session.Store {
       .then(() => callback?.())
       .catch(error => callback?.(error));
   }
+
+  touch(sid: string, value: session.SessionData, callback?: (error?: unknown) => void): void {
+    const ttlSeconds = Math.max(1, Math.ceil((value.cookie.maxAge ?? 7 * 24 * 60 * 60 * 1000) / 1000));
+    let client;
+    try { client = getRedisClient(); } catch (error) { callback?.(error); return; }
+    client.expire(`${this.prefix}${sid}`, ttlSeconds)
+      .then(() => callback?.())
+      .catch(error => callback?.(error));
+  }
 }

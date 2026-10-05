@@ -33,7 +33,13 @@ webhooksRouter.post(
     const rawBody = (req as Request & { rawBody?: string }).rawBody || '';
 
     // Validate webhook signature
-    const secret = process.env.GITHUB_WEBHOOK_SECRET;
+    const secret = process.env.GITHUB_WEBHOOK_SECRET?.trim();
+    if (!deliveryId || !eventType) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_WEBHOOK', message: 'Missing GitHub delivery metadata' } });
+    }
+    if (!secret && process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ success: false, error: { code: 'WEBHOOK_NOT_CONFIGURED', message: 'Webhook verification is not configured' } });
+    }
     if (secret) {
       const valid = await validateWebhookSignature(rawBody, signature || '', secret);
       if (!valid) {
@@ -42,16 +48,12 @@ webhooksRouter.post(
       }
     }
 
-    // Return quickly - process asynchronously
-    res.status(202).json({ success: true, data: { received: true } });
-
-    // Idempotency check - deduplicate events
-    if (deliveryId) {
-      const existing = await WebhookEvent.findOne({ deliveryId });
-      if (existing && existing.processed) {
-        logger.info(`Webhook ${deliveryId} already processed, skipping`);
-        return;
-      }
+    // A unique delivery id is the durable idempotency boundary. Do not report
+    // success until the event has been stored and a queue job was accepted.
+    const existing = await WebhookEvent.findOne({ deliveryId });
+    if (existing) {
+      logger.info(`Duplicate webhook delivery ${deliveryId}`);
+      return res.status(202).json({ success: true, data: { received: true, duplicate: true } });
     }
 
     // Persist webhook event
@@ -61,7 +63,7 @@ webhooksRouter.post(
     let webhookEvent;
     try {
       webhookEvent = await WebhookEvent.create({
-        deliveryId: deliveryId || `manual-${Date.now()}`,
+        deliveryId,
         eventType,
         repositoryFullName: repoFullName,
         payload,
@@ -69,12 +71,22 @@ webhooksRouter.post(
         receivedAt: new Date()
       });
     } catch (err) {
-      // Unique constraint violation = duplicate
-      logger.info(`Duplicate webhook delivery ${deliveryId}`);
-      return;
+      if (typeof err === 'object' && err && 'code' in err && (err as { code?: number }).code === 11000) {
+        return res.status(202).json({ success: true, data: { received: true, duplicate: true } });
+      }
+      throw err;
     }
 
-    await enqueueWebhookEvent(webhookEvent.id, eventType, payload);
+    try {
+      await enqueueWebhookEvent(webhookEvent.id, eventType, payload);
+    } catch (error) {
+      await WebhookEvent.findByIdAndUpdate(webhookEvent.id, {
+        processingError: `Queue enqueue failed: ${error instanceof Error ? error.message : String(error)}`
+      });
+      return res.status(503).json({ success: false, error: { code: 'WEBHOOK_QUEUE_UNAVAILABLE', message: 'Webhook was stored but could not be queued; it will be recovered.' } });
+    }
+
+    return res.status(202).json({ success: true, data: { received: true } });
   }
 );
 
@@ -98,6 +110,15 @@ export async function processWebhookEvent(
     await WebhookEvent.findByIdAndUpdate(webhookEventId, {
       processingError: err instanceof Error ? err.message : String(err)
     });
+    throw err;
+  }
+}
+
+/** Re-enqueue persisted events after a transient queue outage or restart. */
+export async function recoverPendingWebhookEvents(): Promise<void> {
+  const pending = await WebhookEvent.find({ processed: false }).sort({ receivedAt: 1 }).limit(100);
+  for (const event of pending) {
+    await enqueueWebhookEvent(event.id, event.eventType, event.payload);
   }
 }
 

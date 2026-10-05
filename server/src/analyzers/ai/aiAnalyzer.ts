@@ -79,19 +79,33 @@ export function buildAIContext(
     // Redact any secrets from diffs before sending to AI
     patch: firewallRepositoryContext(d.filename, d.patch || '')
   }));
+  const sanitizedFiles = Array.from(fileContents.entries()).slice(0, 20).map(([filename, content]) => ({
+    filename,
+    content: firewallRepositoryContext(filename, content)
+  }));
+
+  const sanitize = (label: string, value: string | undefined) =>
+    firewallRepositoryContext(`metadata/${label}.txt`, value || '');
 
   const context = {
     task: {
       type: 'release_analysis',
       goal: 'identify release and security risks'
     },
-    repository: input.repository,
-    pullRequest: input.pullRequest,
-    changedFiles: input.changedFiles.slice(0, 50),
+    repository: {
+      ...input.repository,
+      owner: sanitize('owner', input.repository.owner),
+      name: sanitize('name', input.repository.name),
+      language: sanitize('language', input.repository.language),
+      framework: sanitize('framework', input.repository.framework)
+    },
+    pullRequest: { ...input.pullRequest, title: sanitize('pr-title', input.pullRequest.title) },
+    changedFiles: input.changedFiles.slice(0, 50).map(file => ({ ...file, filename: sanitize('filename', file.filename) })),
     diffs: sanitizedDiffs.slice(0, 20),
-    deterministicFindings: input.deterministicFindings,
-    securityFindings: input.securityFindings,
-    contextWarnings: input.contextWarnings
+    fileContents: sanitizedFiles,
+    deterministicFindings: input.deterministicFindings.map(f => ({ ...f, title: sanitize('finding-title', f.title), summary: sanitize('finding-summary', f.summary) })),
+    securityFindings: input.securityFindings.map(f => ({ ...f, title: sanitize('security-title', f.title), summary: sanitize('security-summary', f.summary) })),
+    contextWarnings: input.contextWarnings.map(warning => sanitize('warning', warning))
   };
 
   return JSON.stringify(context, null, 2);

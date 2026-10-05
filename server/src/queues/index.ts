@@ -7,6 +7,8 @@ let analysisQueue: Queue | null = null;
 let analysisWorker: Worker | null = null;
 let webhookQueue: Queue | null = null;
 let webhookWorker: Worker | null = null;
+let verificationQueue: Queue | null = null;
+let verificationWorker: Worker | null = null;
 
 export async function initQueues(): Promise<void> {
   try {
@@ -45,6 +47,19 @@ export async function initQueues(): Promise<void> {
       },
       { connection, concurrency: 10 }
     );
+    const { recoverPendingWebhookEvents } = await import('../routes/webhooks');
+    await recoverPendingWebhookEvents();
+
+    verificationQueue = new Queue('verification', { connection });
+    verificationWorker = new Worker(
+      'verification',
+      async (job: Job) => {
+        const { analysisRunId } = job.data;
+        const { runVerification } = await import('../services/verification/verificationEngine');
+        await runVerification(analysisRunId);
+      },
+      { connection, concurrency: 2 }
+    );
 
     analysisWorker.on('completed', (job) => {
       logger.info(`Analysis job ${job.id} completed`);
@@ -56,8 +71,7 @@ export async function initQueues(): Promise<void> {
 
     logger.info('✅ BullMQ queues initialized');
   } catch (err) {
-    logger.warn('Redis unavailable, falling back to in-process analysis:', err instanceof Error ? err.message : String(err));
-    // Non-fatal: analysis will run synchronously
+    logger.warn('Redis unavailable; durable queue processing is disabled:', err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -68,13 +82,13 @@ export async function enqueueAnalysis(analysisRunId: string): Promise<void> {
       attempts: 3
     });
     logger.info(`Analysis ${analysisRunId} enqueued`);
-  } else {
-    // Fallback: run inline (no Redis)
+  } else if (process.env.NODE_ENV !== 'production') {
+    // Local development convenience only. Production must never lose durable work.
     logger.info(`Running analysis ${analysisRunId} inline (no Redis)`);
     setTimeout(() => runAnalysis(analysisRunId).catch(err => {
       logger.error('Inline analysis failed:', err instanceof Error ? err.message : String(err));
     }), 100);
-  }
+  } else throw new Error('Analysis queue is unavailable');
 }
 
 export function getAnalysisQueue(): Queue | null {
@@ -89,5 +103,16 @@ export async function enqueueWebhookEvent(webhookEventId: string, eventType: str
     backoff: { type: 'exponential', delay: 1000 },
     removeOnComplete: 500,
     removeOnFail: 500
+  });
+}
+
+export async function enqueueVerification(analysisRunId: string): Promise<void> {
+  if (!verificationQueue) throw new Error('Verification queue is unavailable');
+  await verificationQueue.add('run-verification', { analysisRunId }, {
+    jobId: `verification-${analysisRunId}`,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 2000 },
+    removeOnComplete: 100,
+    removeOnFail: 100
   });
 }

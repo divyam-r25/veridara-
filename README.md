@@ -91,7 +91,7 @@ Loop Engineering: Observe → Analyze → Explain → Plan → Fix → Verify �
 ### Backend (`/server`)
 - **Node.js + Express + TypeScript**
 - **MongoDB** (via Mongoose) — all persistent state
-- **BullMQ + Redis** — async analysis queue (optional)
+- **BullMQ + Redis** — durable async analysis and verification queues (required in production)
 - **Octokit** — GitHub API integration
 - **Zod** — schema validation for all AI output
 
@@ -124,6 +124,8 @@ See `server/.env.example`. Key variables:
 | `GITHUB_CLIENT_ID` | No | For real GitHub OAuth (demo works without) |
 | `GITHUB_CLIENT_SECRET` | No | For real GitHub OAuth |
 | `GITHUB_CALLBACK_URL` | Yes for OAuth | Public API callback URL registered with GitHub |
+| `TEST_MONGODB_URI` | Tests only | Dedicated non-production MongoDB connection string; never reuse `MONGODB_URI` |
+| `TEST_REDIS_URL` | Tests only | Dedicated non-production Redis URL; never reuse `REDIS_URL` |
 | `AI_API_KEY` | No | OpenAI key (system works without AI) |
 | `SESSION_SECRET` | Yes | Change in production |
 | `CORS_ORIGINS` | Yes in production | Comma-separated allowed frontend origins |

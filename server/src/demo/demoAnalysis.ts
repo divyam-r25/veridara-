@@ -12,6 +12,7 @@ import { calculateScores } from '../scoring/scoringEngine';
 import { generateFixPack } from '../reports/fixPackGenerator';
 import { DEMO_FILES, DEMO_FILE_CONTENTS, DEMO_FIXED_FILES } from './demoData';
 import { logger } from '../utils/logger';
+import { transitionAnalysisRun, updateAnalysisRun } from '../services/loopController';
 
 export async function runDemoAnalysis(
   analysisRunId: string,
@@ -26,22 +27,19 @@ export async function runDemoAnalysis(
 
     if (!pr || !repo) throw new Error('PR or repo not found');
 
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, {
-      status: 'TRIAGED',
+    await transitionAnalysisRun(analysisRunId, 'TRIAGED', {
       'analysisProgress.fetchingPR': 'DONE'
     });
 
     await sleep(800);
 
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, {
-      status: 'CONTEXT_BUILT',
+    await transitionAnalysisRun(analysisRunId, 'CONTEXT_BUILT', {
       'analysisProgress.buildingContext': 'DONE'
     });
 
     await sleep(600);
 
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, {
-      status: 'ANALYZING',
+    await transitionAnalysisRun(analysisRunId, 'ANALYZING', {
       'analysisProgress.runningChecks': 'IN_PROGRESS'
     });
 
@@ -55,14 +53,14 @@ export async function runDemoAnalysis(
 
     await sleep(500);
 
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, {
+    await updateAnalysisRun(analysisRunId, {
       'analysisProgress.runningChecks': 'DONE',
       'analysisProgress.aiReasoning': 'IN_PROGRESS'
     });
 
     await sleep(1200);
 
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, {
+    await updateAnalysisRun(analysisRunId, {
       'analysisProgress.aiReasoning': 'DONE',
       'analysisProgress.calculatingScore': 'IN_PROGRESS'
     });
@@ -93,15 +91,16 @@ export async function runDemoAnalysis(
 
     await sleep(400);
 
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, {
+    await updateAnalysisRun(analysisRunId, {
       'analysisProgress.calculatingScore': 'DONE',
       'analysisProgress.generatingReport': 'IN_PROGRESS'
     });
 
     const executiveSummary = generateDemoSummary(scores, allFindings);
 
-    const updatedRun = await AnalysisRun.findByIdAndUpdate(analysisRunId, {
-      status: 'AWAITING_FIX',
+    await transitionAnalysisRun(analysisRunId, 'FINDINGS_READY');
+    await transitionAnalysisRun(analysisRunId, 'FIX_PLAN_READY');
+    const updatedRun = await transitionAnalysisRun(analysisRunId, 'AWAITING_FIX', {
       releaseScore: scores.releaseScore,
       securityScore: scores.securityScore,
       verificationConfidence: 0,
@@ -116,7 +115,7 @@ export async function runDemoAnalysis(
       aiAvailable: false,
       'analysisProgress.generatingReport': 'DONE',
       completedAt: new Date()
-    }, { new: true });
+    });
 
     // Generate fix pack
     if (updatedRun) {
@@ -141,7 +140,8 @@ export async function runDemoAnalysis(
 
   } catch (err) {
     logger.error('Demo analysis failed:', err instanceof Error ? err.message : String(err));
-    await AnalysisRun.findByIdAndUpdate(analysisRunId, { status: 'FAILED', completedAt: new Date() });
+    const run = await AnalysisRun.findById(analysisRunId).select('status');
+    if (run && !['RESOLVED', 'PARTIAL', 'REGRESSED', 'UNRESOLVED', 'FAILED'].includes(run.status)) await transitionAnalysisRun(analysisRunId, 'FAILED', { completedAt: new Date() });
   }
 }
 
@@ -158,18 +158,17 @@ export async function runDemoVerification(
     const repo = await Repository.findById(repositoryId);
     if (!pr || !repo) throw new Error('PR or repo not found');
 
-    await AnalysisRun.findByIdAndUpdate(newAnalysisRunId, {
-      status: 'TRIAGED',
+    await transitionAnalysisRun(newAnalysisRunId, 'TRIAGED', {
       'analysisProgress.fetchingPR': 'DONE'
     });
 
     await sleep(600);
 
-    await AnalysisRun.findByIdAndUpdate(newAnalysisRunId, {
-      status: 'REANALYZING',
+    await transitionAnalysisRun(newAnalysisRunId, 'CONTEXT_BUILT', {
       'analysisProgress.buildingContext': 'DONE',
       'analysisProgress.runningChecks': 'IN_PROGRESS'
     });
+    await transitionAnalysisRun(newAnalysisRunId, 'REANALYZING');
 
     // Run analyzers with fixed demo files
     const [changeResult, securityResult, dependencyResult, apiResult] = await Promise.all([
@@ -224,7 +223,7 @@ export const paymentController = {
       findings: newFindings
     });
 
-    await AnalysisRun.findByIdAndUpdate(newAnalysisRunId, {
+    await updateAnalysisRun(newAnalysisRunId, {
       'analysisProgress.runningChecks': 'DONE',
       'analysisProgress.aiReasoning': 'IN_PROGRESS'
     });
@@ -281,8 +280,8 @@ export const paymentController = {
       aiVerificationSummary: 'Independent verification confirms the hardcoded API secret has been removed and authorization check has been added to the refund endpoint. The command injection via exec() is resolved. Test coverage has been added. Prompt injection pattern in README appears removed.'
     });
 
-    const updatedRun = await AnalysisRun.findByIdAndUpdate(newAnalysisRunId, {
-      status: 'RESOLVED',
+    await transitionAnalysisRun(newAnalysisRunId, 'VERIFYING');
+    const updatedRun = await transitionAnalysisRun(newAnalysisRunId, 'RESOLVED', {
       releaseScore: scores.releaseScore,
       securityScore: scores.securityScore,
       verificationConfidence: 82,
@@ -299,7 +298,7 @@ export const paymentController = {
       'analysisProgress.calculatingScore': 'DONE',
       'analysisProgress.generatingReport': 'DONE',
       completedAt: new Date()
-    }, { new: true });
+    });
 
     if (updatedRun) {
       const savedFindings = await Finding.find({ analysisRunId: newAnalysisRunId });
@@ -325,7 +324,8 @@ export const paymentController = {
 
   } catch (err) {
     logger.error('Demo verification failed:', err instanceof Error ? err.message : String(err));
-    await AnalysisRun.findByIdAndUpdate(newAnalysisRunId, { status: 'FAILED', completedAt: new Date() });
+    const run = await AnalysisRun.findById(newAnalysisRunId).select('status');
+    if (run && !['RESOLVED', 'PARTIAL', 'REGRESSED', 'UNRESOLVED', 'FAILED'].includes(run.status)) await transitionAnalysisRun(newAnalysisRunId, 'FAILED', { completedAt: new Date() });
   }
 }
 

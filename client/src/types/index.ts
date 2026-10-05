@@ -30,6 +30,7 @@ export interface Repository {
   _id: string;
   id: string;
   githubRepoId: string;
+  installationId?: string;
   owner: string;
   name: string;
   fullName: string;
@@ -164,6 +165,7 @@ export interface ApiResponse<T> {
   success: boolean;
   data: T;
   demoMode?: boolean;
+  githubAppConfigured?: boolean;
 }
 
 export interface GitHubRepo {
