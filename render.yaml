@@ -3,7 +3,7 @@ services:
     name: releaseradar
     runtime: node
     plan: free
-    buildCommand: npm ci --prefix server && npm ci --prefix client && npm run build --prefix client && npm run build --prefix server && mkdir -p server/public && cp -R client/dist/. server/public/
+    buildCommand: npm ci --include=dev --prefix server && npm ci --include=dev --prefix client && npm run build --prefix client && npm run build --prefix server && mkdir -p server/public && cp -R client/dist/. server/public/
     startCommand: npm start --prefix server
     healthCheckPath: /api/health
     envVars:
