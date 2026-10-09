@@ -53,15 +53,19 @@ The Vercel frontend can alternatively call the Render API through the public
 3. Add the production environment variables listed below. MongoDB and Redis are
    required for the full asynchronous analysis architecture.
 4. Set `GITHUB_CALLBACK_URL` to
-   `https://<your-render-service>.onrender.com/api/auth/github/callback` and
-   register that exact URL in the GitHub OAuth application.
+   `https://veridara.vercel.app/api/auth/github/callback` and register that
+   exact URL as the **Authorization callback URL** in the GitHub OAuth app.
+   Vercel proxies `/api/*` to Render, so OAuth state and the signed-in session
+   stay first-party on the browser's Vercel domain. This avoids failures from
+   third-party-cookie blocking.
 
 ### Vercel frontend
 
-The root `vercel.json` builds `client` and publishes `client/dist`. Keep the
-Vercel project Root Directory at the repository root. Update `VITE_API_URL` if
-the Render API URL changes, then redeploy. The Render service must allow the
-Vercel URL in `CORS_ORIGINS`.
+The root `vercel.json` builds `client`, publishes `client/dist`, and proxies
+`/api/*` to the Render API. Keep the Vercel project Root Directory at the
+repository root. If the Render API URL changes, update the API rewrite in
+`vercel.json`, then redeploy. The Render service must allow the Vercel URL in
+`CORS_ORIGINS`.
 
 ---
 

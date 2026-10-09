@@ -1,4 +1,11 @@
 services:
+  # OAuth state and user sessions must survive redirects and restarts.
+  - type: keyvalue
+    name: veridara-session-store
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
   - type: web
     name: veridara-api
     runtime: node
@@ -14,7 +21,10 @@ services:
       - key: MONGODB_URI
         sync: false
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: veridara-session-store
+          type: keyvalue
+          property: connectionString
       - key: SESSION_SECRET
         generateValue: true
       - key: CORS_ORIGINS
