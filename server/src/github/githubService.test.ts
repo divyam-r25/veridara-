@@ -20,7 +20,7 @@ describe('GitHub OAuth token exchange', () => {
   beforeEach(() => {
     process.env.GITHUB_CLIENT_ID = 'test-client-id';
     process.env.GITHUB_CLIENT_SECRET = 'test-client-secret';
-    process.env.GITHUB_CALLBACK_URL = 'https://veridara-api.onrender.com/api/auth/github/callback';
+    process.env.GITHUB_CALLBACK_URL = 'https://veridara.vercel.app/api/auth/github/callback';
   });
 
   afterEach(() => {
@@ -53,7 +53,7 @@ describe('GitHub OAuth token exchange', () => {
     expect(body.get('client_id')).toBe('test-client-id');
     expect(body.get('client_secret')).toBe('test-client-secret');
     expect(body.get('code')).toBe('oauth-code');
-    expect(body.get('redirect_uri')).toBe('https://veridara-api.onrender.com/api/auth/github/callback');
+    expect(body.get('redirect_uri')).toBe('https://veridara.vercel.app/api/auth/github/callback');
   });
 
   it('omits redirect_uri when it is not configured', async () => {

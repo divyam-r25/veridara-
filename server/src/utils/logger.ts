@@ -25,3 +25,12 @@ export const createLogger = (prefix?: string) => ({
 });
 
 export const logger = createLogger();
+
+/** Log operational errors with useful context without serializing request data. */
+export function logError(context: string, error: unknown): void {
+  if (error instanceof Error) {
+    logger.error(context, { name: error.name, message: error.message, stack: error.stack });
+    return;
+  }
+  logger.error(context, { name: 'NonErrorThrown', message: String(error) });
+}

@@ -67,6 +67,25 @@ repository root. If the Render API URL changes, update the API rewrite in
 `vercel.json`, then redeploy. The Render service must allow the Vercel URL in
 `CORS_ORIGINS`.
 
+### Production OAuth checklist
+
+Before deploying, verify these values manually; secrets are intentionally not
+stored in this repository:
+
+1. **Vercel:** production domain is `https://veridara.vercel.app`, and the
+   root-level `vercel.json` rewrite for `/api/(.*)` remains enabled.
+2. **Render:** set `CLIENT_URL=https://veridara.vercel.app` and
+   `GITHUB_CALLBACK_URL=https://veridara.vercel.app/api/auth/github/callback`.
+   Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from the same GitHub
+   OAuth App. Keep the Blueprint-managed `REDIS_URL` connected to
+   `veridara-session-store`, and set a MongoDB URI plus a strong session secret.
+3. **GitHub OAuth App:** set the exact Authorization callback URL to
+   `https://veridara.vercel.app/api/auth/github/callback`. Request `read:user`,
+   `user:email`, and `repo` only when private repository discovery is needed.
+4. **GitHub App:** install it on each repository to be analyzed, with the
+   repository permissions required by the configured analyzers. OAuth sign-in
+   identifies the user; it does not grant the GitHub App installation access.
+
 ---
 
 ## Demo Flow (no GitHub credentials needed)

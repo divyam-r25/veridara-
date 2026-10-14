@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import { createAppAuth } from '@octokit/auth-app';
 import { logger } from '../utils/logger';
+import { getGitHubCallbackUrl } from '../config/runtime';
 
 export interface GitHubFile {
   filename: string;
@@ -94,9 +95,7 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
     code
   });
 
-  if (redirectUri) {
-    params.set('redirect_uri', redirectUri);
-  }
+  if (redirectUri) params.set('redirect_uri', getGitHubCallbackUrl());
 
   const response = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',

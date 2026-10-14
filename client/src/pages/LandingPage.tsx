@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Zap, Shield, GitBranch, RefreshCw, ArrowRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getGitHubLoginUrl } from '../services/api';
@@ -8,7 +8,14 @@ import { Spinner } from '../components/ui';
 export function LandingPage() {
   const { isAuthenticated, loginAsDemo, demoModeAvailable, loading, error, refetch } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [authLoading, setAuthLoading] = useState(false);
+  const oauthError = new URLSearchParams(location.search).get('error');
+  const oauthErrorMessage = oauthError === 'github_denied'
+    ? 'GitHub sign-in was cancelled. You can try again when ready.'
+    : oauthError === 'auth_failed'
+      ? 'GitHub sign-in could not be completed. Please try again or contact support if it continues.'
+      : null;
 
   React.useEffect(() => {
     if (isAuthenticated) navigate('/dashboard');
@@ -127,6 +134,12 @@ export function LandingPage() {
             </button>
           )}
         </div>
+
+        {oauthErrorMessage && (
+          <div role="alert" className="mb-10 max-w-xl rounded-lg border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-200">
+            {oauthErrorMessage}
+          </div>
+        )}
 
         {/* Feature cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl w-full">

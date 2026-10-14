@@ -1,6 +1,10 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 
+export function isDatabaseAvailable(): boolean {
+  return mongoose.connection.readyState === mongoose.ConnectionStates.connected;
+}
+
 export async function connectDatabase(): Promise<void> {
   const isTest = process.env.NODE_ENV === 'test';
   const uri = isTest ? process.env.TEST_MONGODB_URI : (process.env.MONGODB_URI || 'mongodb://localhost:27017/veridara');

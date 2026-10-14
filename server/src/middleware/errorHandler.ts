@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger';
+import { logError } from '../utils/logger';
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -8,7 +8,7 @@ export interface AppError extends Error {
 
 export function errorHandler(
   err: AppError,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -20,7 +20,7 @@ export function errorHandler(
     ? 'An unexpected error occurred'
     : err.message;
 
-  logger.error(`Error [${code}]: ${err.message}`);
+  logError(`Request failed [${code}] ${req.method} ${req.path}`, err);
 
   res.status(statusCode).json({
     success: false,

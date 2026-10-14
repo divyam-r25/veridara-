@@ -5,10 +5,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import { connectDatabase } from './config/database';
+import { connectDatabase, isDatabaseAvailable } from './config/database';
 import { connectRedis, isRedisAvailable } from './config/redis';
-import { configureSession } from './config/session';
-import mongoose from 'mongoose';
+import { configureSession, requireReadyDependencies } from './config/session';
+import { validateRuntimeConfiguration } from './config/runtime';
 import { initQueues } from './queues';
 import { errorHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/auth';
@@ -58,35 +58,18 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Webhook route must be BEFORE json body parser (needs raw body for signature verification)
-app.use('/api/webhooks', webhooksRouter);
-
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
 // Logging
 app.use(morgan('combined', {
   stream: { write: (msg: string) => logger.info(msg.trim()) }
 }));
 
-// Session configuration trusts Render's proxy before secure cookies are used.
-configureSession(app);
-
-// Routes
-app.use('/api/auth', authRouter);
-app.use('/api/me', meRouter);
-app.use('/api/repositories', repositoriesRouter);
-app.use('/api/pulls', pullRequestsRouter);
-app.use('/api/analyses', analysesRouter);
-
-// Readiness endpoint. Production traffic must not be directed to an instance
-// that cannot reach either persistent dependency.
+// Health must not depend on session middleware. It is the only endpoint made
+// available while a dependency is unavailable.
 app.get('/api/health', (_req, res) => {
-  const databaseReady = mongoose.connection.readyState === mongoose.ConnectionStates.connected;
+  const databaseReady = isDatabaseAvailable();
   const redisReady = isRedisAvailable();
-  const ready = databaseReady && redisReady;
-  res.status(process.env.NODE_ENV === 'production' && !ready ? 503 : 200).json({
+  const ready = databaseReady && (process.env.NODE_ENV !== 'production' || redisReady);
+  res.status(ready ? 200 : 503).json({
     success: true,
     data: {
       status: ready ? 'ok' : 'degraded',
@@ -100,6 +83,26 @@ app.get('/api/health', (_req, res) => {
     }
   });
 });
+
+// Prevent the Redis session store from receiving requests after an outage.
+app.use(requireReadyDependencies);
+
+// Webhook route must be BEFORE json body parser (needs raw body for signature verification)
+app.use('/api/webhooks', webhooksRouter);
+
+// Body parsing for all non-webhook routes.
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Session configuration trusts Render's proxy before secure cookies are used.
+configureSession(app);
+
+// Routes
+app.use('/api/auth', authRouter);
+app.use('/api/me', meRouter);
+app.use('/api/repositories', repositoriesRouter);
+app.use('/api/pulls', pullRequestsRouter);
+app.use('/api/analyses', analysesRouter);
 
 // In production, the Render build copies the Vite bundle here so the API and
 // client share one origin. This keeps session cookies and API requests working
@@ -116,31 +119,28 @@ if (process.env.NODE_ENV === 'production') {
 // Error handler (must be last)
 app.use(errorHandler);
 
-async function start() {
-  // Listen first for diagnostics, then establish backing services. Readiness
-  // remains 503 in production until both dependencies are connected.
+export async function start() {
+  validateRuntimeConfiguration();
+
+  // Do not accept authentication traffic until MongoDB and the Redis-backed
+  // session store are ready. This prevents OAuth state saves from racing init.
+  await connectDatabase();
+  await connectRedis();
+  await initQueues();
+
   app.listen(PORT, () => {
     logger.info(`🚀 Veridara server running on port ${PORT}`);
     logger.info(`   Health: http://localhost:${PORT}/api/health`);
     logger.info(`   Demo login: POST http://localhost:${PORT}/api/auth/demo-login`);
   });
 
-  // Then connect to backing services (non-fatal if unavailable)
-  try {
-    await connectDatabase();
-  } catch (err) {
-    logger.error('⚠️  MongoDB unavailable — API will return errors until connected');
-    logger.error('    Fix: whitelist your IP at https://cloud.mongodb.com → Network Access');
-  }
-
-  try {
-    await connectRedis();
-    await initQueues();
-  } catch (err) {
-    logger.warn('⚠️  Redis unavailable — production analyses and sessions remain unavailable');
-  }
 }
 
-start();
+if (require.main === module) {
+  start().catch((error) => {
+    logger.error('Server startup failed:', error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}
 
 export { app };

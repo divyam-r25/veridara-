@@ -5,12 +5,14 @@ import { AuditLog } from '../models/AuditLog';
 import { createError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 import crypto from 'crypto';
+import { getClientUrl, getGitHubCallbackUrl, hasGitHubOAuthConfiguration } from '../config/runtime';
 
 export const authRouter = Router();
 
 type OAuthStateSession = {
   oauthState?: string;
   save(callback: (error?: unknown) => void): void;
+  regenerate(callback: (error?: unknown) => void): void;
 };
 
 export function createOAuthState(): string {
@@ -26,6 +28,10 @@ function saveSession(session: OAuthStateSession): Promise<void> {
   return new Promise((resolve, reject) => session.save(error => error ? reject(error) : resolve()));
 }
 
+function regenerateSession(session: OAuthStateSession): Promise<void> {
+  return new Promise((resolve, reject) => session.regenerate(error => error ? reject(error) : resolve()));
+}
+
 /** Validate and consume an OAuth state. Every result invalidates the old state. */
 export async function consumeOAuthState(session: OAuthStateSession, receivedState: unknown): Promise<boolean> {
   const valid = statesMatch(session.oauthState, receivedState);
@@ -38,15 +44,16 @@ export async function consumeOAuthState(session: OAuthStateSession, receivedStat
 // ensures the state cookie is established before GitHub redirects back.
 authRouter.get('/github', async (req: Request, res: Response, next: NextFunction) => {
   const clientId = process.env.GITHUB_CLIENT_ID?.trim();
-  const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').trim();
 
-  if (!clientId) {
-    return res.redirect(`${clientUrl}?demo=1`);
+  if (!hasGitHubOAuthConfiguration() || !clientId) {
+    return next(createError('GitHub sign-in is not configured', 503, 'OAUTH_NOT_CONFIGURED'));
   }
 
   try {
-    const scope = 'read:user user:email';
-    const redirectUri = (process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/api/auth/github/callback').trim();
+    // repo is required only to list and select the user's private repositories.
+    // Pull-request analysis itself still uses short-lived GitHub App tokens.
+    const scope = 'read:user user:email repo';
+    const redirectUri = getGitHubCallbackUrl();
     const state = createOAuthState();
     req.session.oauthState = state;
     await saveSession(req.session);
@@ -60,7 +67,12 @@ authRouter.get('/github', async (req: Request, res: Response, next: NextFunction
 // GitHub OAuth callback
 authRouter.get('/github/callback', async (req: Request, res: Response, next: NextFunction) => {
   const { code, error, state } = req.query;
-  const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').trim();
+  let clientUrl: string;
+  try {
+    clientUrl = getClientUrl();
+  } catch (configurationError) {
+    return next(configurationError);
+  }
 
   if (error) {
     return res.redirect(`${clientUrl}?error=github_denied`);
@@ -94,6 +106,8 @@ authRouter.get('/github/callback', async (req: Request, res: Response, next: Nex
       { upsert: true, new: true }
     );
 
+    // Rotate the identifier after authentication to prevent session fixation.
+    await regenerateSession(req.session);
     req.session.userId = user.id;
     await saveSession(req.session);
 
@@ -102,12 +116,12 @@ authRouter.get('/github/callback', async (req: Request, res: Response, next: Nex
       action: 'GITHUB_CONNECTED',
       metadata: { githubLogin: githubUser.login },
       ip: req.ip
-    });
+    }).catch((auditError) => logger.warn('GitHub sign-in audit log failed:', auditError instanceof Error ? auditError.message : String(auditError)));
 
     return res.redirect(`${clientUrl}/dashboard`);
   } catch (err) {
     logger.error('GitHub OAuth callback failed:', err instanceof Error ? err.message : String(err));
-    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?error=auth_failed`);
+    res.redirect(`${clientUrl}/?error=auth_failed`);
   }
 });
 
@@ -125,7 +139,9 @@ authRouter.post('/demo-login', async (req: Request, res: Response, next: NextFun
       { upsert: true, new: true }
     );
 
+    await regenerateSession(req.session);
     req.session.userId = demoUser.id;
+    await saveSession(req.session);
 
     res.json({
       success: true,
@@ -168,7 +184,7 @@ authRouter.get('/status', (req: Request, res: Response) => {
     success: true,
     data: {
       authenticated: !!req.session.userId,
-      demoModeAvailable: !process.env.GITHUB_CLIENT_ID
+      demoModeAvailable: !hasGitHubOAuthConfiguration()
     }
   });
 });

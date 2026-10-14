@@ -16,11 +16,11 @@ describe('production session configuration', () => {
     expect(app.get('trust proxy')).toBe(1);
   });
 
-  it('uses secure cross-site cookies only in production', () => {
+  it('uses secure first-party cookies in production', () => {
     process.env.NODE_ENV = 'production';
     const productionCookie = getSessionOptions().cookie as CookieOptions;
     expect(productionCookie.secure).toBe(true);
-    expect(productionCookie.sameSite).toBe('none');
+    expect(productionCookie.sameSite).toBe('lax');
     expect(productionCookie.httpOnly).toBe(true);
 
     process.env.NODE_ENV = 'development';

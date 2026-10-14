@@ -72,6 +72,7 @@ export async function initQueues(): Promise<void> {
     logger.info('✅ BullMQ queues initialized');
   } catch (err) {
     logger.warn('Redis unavailable; durable queue processing is disabled:', err instanceof Error ? err.message : String(err));
+    if (process.env.NODE_ENV === 'production') throw err;
   }
 }
 

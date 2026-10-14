@@ -18,12 +18,19 @@ export function isRedisAvailable(): boolean {
 
 export async function connectRedis(): Promise<void> {
   const isTest = process.env.NODE_ENV === 'test';
-  const url = isTest ? process.env.TEST_REDIS_URL : (process.env.REDIS_URL || 'redis://localhost:6379');
-  if (!url) throw new Error('TEST_REDIS_URL is required when NODE_ENV=test');
+  const production = process.env.NODE_ENV === 'production';
+  const url = isTest ? process.env.TEST_REDIS_URL : process.env.REDIS_URL;
+  if (!url) {
+    if (!production && !isTest) {
+      logger.warn('REDIS_URL is not configured; development will use in-memory sessions and inline queues');
+      return;
+    }
+    throw new Error(`${isTest ? 'TEST_REDIS_URL' : 'REDIS_URL'} is required`);
+  }
 
   redisClient = new Redis(url, {
     maxRetriesPerRequest: null,
-    enableReadyCheck: false,
+    enableReadyCheck: true,
     lazyConnect: true,
     retryStrategy: (times) => {
       if (times > 3) return null; // Stop retrying after 3 attempts
@@ -40,21 +47,20 @@ export async function connectRedis(): Promise<void> {
     redisAvailable = false;
   });
 
-  redisClient.on('connect', () => {
-    logger.info('✅ Connected to Redis');
+  redisClient.on('ready', () => {
     redisAvailable = true;
     errorLogged = false;
   });
 
-  redisClient.on('ready', () => {
-    redisAvailable = true;
-  });
-
   try {
     await redisClient.connect();
+    await redisClient.ping();
     redisAvailable = true;
-  } catch {
-    // Silently handled by the 'error' event listener above
+    logger.info('✅ Connected to Redis');
+  } catch (error) {
     redisAvailable = false;
+    redisClient.disconnect();
+    redisClient = null;
+    throw error;
   }
 }
